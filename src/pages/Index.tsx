@@ -1,14 +1,26 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { Dashboard } from "@/components/dashboard/Dashboard";
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userData, setUserData] = useState<{ name: string; email: string } | null>(null);
+
+  const handleLogin = (user: { name: string; email: string }) => {
+    setUserData(user);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserData(null);
+  };
+
+  if (!isAuthenticated || !userData) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
+
+  return <Dashboard userData={userData} onLogout={handleLogout} />;
 };
 
 export default Index;
