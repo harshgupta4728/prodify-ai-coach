@@ -1,4 +1,4 @@
-import { Brain, LayoutDashboard, Calendar, History, User, Settings, LogOut } from "lucide-react";
+import { Brain, LayoutDashboard, Calendar, History, User, Settings, LogOut, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const sidebarItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "planner", label: "My Planner", icon: Calendar },
   { id: "history", label: "Practice History", icon: History },
+  { id: "profiles", label: "Coding Profiles", icon: Code },
   { id: "profile", label: "Profile", icon: User },
 ];
 

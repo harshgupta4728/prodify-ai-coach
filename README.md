@@ -1,73 +1,172 @@
-# Welcome to your Lovable project
+# Prodify AI Coach
 
-## Project info
+An AI-powered study companion for mastering Data Structures and Algorithms with personalized recommendations and progress tracking.
+
+## 🚀 Live Demo
 
 **URL**: https://lovable.dev/projects/b0baf44b-8394-4bb1-afe0-baa2d80a322e
 
-## How can I edit this code?
+## 📋 Project Overview
 
-There are several ways of editing your application.
+Prodify AI Coach is a full-stack web application designed to help students and developers master Data Structures and Algorithms through personalized learning experiences. The platform integrates with popular coding platforms like LeetCode and GeeksForGeeks to provide comprehensive progress tracking and study planning.
 
-**Use Lovable**
+## 🛠️ Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b0baf44b-8394-4bb1-afe0-baa2d80a322e) and start prompting.
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **Tailwind CSS** for styling
+- **shadcn/ui** component library
+- **React Router DOM** for routing
+- **React Hook Form** with Zod validation
+- **TanStack Query** for data fetching
+- **Radix UI** for accessible components
 
-Changes made via Lovable will be committed automatically to this repo.
+### Backend
+- **Node.js** with Express.js
+- **MongoDB** with Mongoose ODM
+- **JWT** for authentication
+- **bcryptjs** for password hashing
+- **Nodemailer** for email notifications
 
-**Use your preferred IDE**
+## ✨ Features
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- ✅ User authentication (signup/login)
+- ✅ JWT token-based sessions
+- ✅ User profile management
+- ✅ LeetCode and GeeksForGeeks profile integration
+- ✅ Modern, responsive UI
+- ✅ Real-time form validation
+- ✅ Toast notifications
+- ✅ Persistent login sessions
+- ✅ Task management and planning
+- ✅ Progress tracking and analytics
+- ✅ Email notifications
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🚀 Quick Start
 
-Follow these steps:
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- MongoDB (local or cloud)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Installation
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/prodify-ai-coach.git
+   cd prodify-ai-coach
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+2. **Install frontend dependencies**
+   ```bash
+   npm install
+   ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+3. **Install backend dependencies**
+   ```bash
+   cd backend
+   npm install
+   cd ..
+   ```
+
+4. **Set up environment variables**
+   Create `.env` files in both root and backend directories:
+   
+   **Root `.env`:**
+   ```env
+   VITE_API_URL=http://localhost:3001/api
+   ```
+   
+   **Backend `.env`:**
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/prodify-ai-coach
+   JWT_SECRET=your_jwt_secret_here
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASS=your_app_password
+   PORT=3001
+   ```
+
+5. **Start the development servers**
+   
+   **Terminal 1 - Backend:**
+   ```bash
+   cd backend
+   npm run dev
+   ```
+   
+   **Terminal 2 - Frontend:**
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser**
+   Navigate to `http://localhost:5173`
+
+## 📁 Project Structure
+
+```
+prodify-ai-coach/
+├── src/                    # Frontend source code
+│   ├── components/         # React components
+│   ├── pages/             # Page components
+│   ├── hooks/             # Custom React hooks
+│   ├── lib/               # Utility functions and API
+│   └── assets/            # Static assets
+├── backend/               # Backend source code
+│   ├── models/            # MongoDB models
+│   ├── routes/            # API routes
+│   ├── middleware/        # Express middleware
+│   └── server.js          # Main server file
+├── public/                # Public assets
+└── docs/                  # Documentation
 ```
 
-**Edit a file directly in GitHub**
+## 🔧 Development
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Available Scripts
 
-**Use GitHub Codespaces**
+**Frontend:**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+**Backend:**
+- `npm run dev` - Start development server with nodemon
+- `npm start` - Start production server
 
-## What technologies are used for this project?
+### Code Style
+- ESLint configuration for code quality
+- Prettier for code formatting
+- TypeScript for type safety
 
-This project is built with:
+## 🚀 Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
+### Using Lovable
 Simply open [Lovable](https://lovable.dev/projects/b0baf44b-8394-4bb1-afe0-baa2d80a322e) and click on Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
+### Manual Deployment
+1. Build the frontend: `npm run build`
+2. Deploy the backend to your preferred hosting service
+3. Update environment variables for production
 
-Yes, you can!
+## 🤝 Contributing
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit your changes: `git commit -m 'Add feature'`
+4. Push to the branch: `git push origin feature-name`
+5. Submit a pull request
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 📝 License
+
+This project is licensed under the MIT License.
+
+## 📞 Support
+
+For support, email support@prodify-ai-coach.com or create an issue in the GitHub repository.
+
+---
+
+**Made with ❤️ for the developer community**

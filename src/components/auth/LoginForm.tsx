@@ -4,25 +4,77 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Lock, User, BookOpen, Brain } from "lucide-react";
+import { Mail, Lock, User as UserIcon, BookOpen, Brain, Link, AlertCircle } from "lucide-react";
 import heroIllustration from "@/assets/hero-illustration.jpg";
+import { apiService, type User } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface LoginFormProps {
-  onLogin: (userData: { name: string; email: string }) => void;
+  onLogin: (userData: User) => void;
 }
 
 export const LoginForm = ({ onLogin }: LoginFormProps) => {
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [signupData, setSignupData] = useState({ name: "", email: "", password: "" });
+  const [signupData, setSignupData] = useState({ 
+    name: "", 
+    email: "", 
+    password: "", 
+    leetcodeProfile: "", 
+    geeksforgeeksProfile: "" 
+  });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin({ name: "John Doe", email: loginData.email });
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await apiService.signin(loginData);
+      apiService.setToken(response.token);
+      onLogin(response.user);
+      toast({
+        title: "Login successful!",
+        description: "Welcome back to Prodify.",
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Login failed");
+      toast({
+        title: "Login failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin({ name: signupData.name, email: signupData.email });
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await apiService.signup(signupData);
+      apiService.setToken(response.token);
+      onLogin(response.user);
+      toast({
+        title: "Account created!",
+        description: "Welcome to Prodify.",
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Signup failed");
+      toast({
+        title: "Signup failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,7 +101,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                 <span>Get AI-powered study recommendations</span>
               </div>
               <div className="flex items-center gap-3">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 <span>Connect with a community of learners</span>
               </div>
             </div>
@@ -88,6 +140,12 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                 </TabsList>
 
                 <TabsContent value="login">
+                  {error && (
+                    <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
+                      <AlertCircle className="h-4 w-4" />
+                      {error}
+                    </div>
+                  )}
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
@@ -101,6 +159,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                           value={loginData.email}
                           onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                           required
+                          disabled={isLoading}
                         />
                       </div>
                     </div>
@@ -116,21 +175,32 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                           value={loginData.password}
                           onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                           required
+                          disabled={isLoading}
                         />
                       </div>
                     </div>
-                    <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90 transition-opacity">
-                      Login to Dashboard
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Logging in..." : "Login to Dashboard"}
                     </Button>
                   </form>
                 </TabsContent>
 
                 <TabsContent value="signup">
+                  {error && (
+                    <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
+                      <AlertCircle className="h-4 w-4" />
+                      {error}
+                    </div>
+                  )}
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-name">Full Name</Label>
                       <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <UserIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="signup-name"
                           type="text"
@@ -139,6 +209,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                           value={signupData.name}
                           onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
                           required
+                          disabled={isLoading}
                         />
                       </div>
                     </div>
@@ -154,6 +225,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                           value={signupData.email}
                           onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                           required
+                          disabled={isLoading}
                         />
                       </div>
                     </div>
@@ -169,11 +241,46 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                           value={signupData.password}
                           onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                           required
+                          disabled={isLoading}
                         />
                       </div>
                     </div>
-                    <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90 transition-opacity">
-                      Create Account
+                    <div className="space-y-2">
+                      <Label htmlFor="leetcode-profile">LeetCode Profile Link (Optional)</Label>
+                      <div className="relative">
+                        <Link className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="leetcode-profile"
+                          type="url"
+                          placeholder="https://leetcode.com/your-username"
+                          className="pl-10"
+                          value={signupData.leetcodeProfile}
+                          onChange={(e) => setSignupData({ ...signupData, leetcodeProfile: e.target.value })}
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="geeksforgeeks-profile">GeeksForGeeks Profile Link (Optional)</Label>
+                      <div className="relative">
+                        <Link className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="geeksforgeeks-profile"
+                          type="url"
+                          placeholder="https://auth.geeksforgeeks.org/user/your-username"
+                          className="pl-10"
+                          value={signupData.geeksforgeeksProfile}
+                          onChange={(e) => setSignupData({ ...signupData, geeksforgeeksProfile: e.target.value })}
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Creating Account..." : "Create Account"}
                     </Button>
                   </form>
                 </TabsContent>
