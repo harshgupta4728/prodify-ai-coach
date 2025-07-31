@@ -9,8 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "setup-github": "node setup-github.js",
-    "setup-github:remote": "node setup-github.js --remote"
+    "setup-github": "node setup-github.cjs",
+    "setup-github:remote": "node setup-github.cjs --remote"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
