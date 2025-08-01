@@ -10,6 +10,7 @@ import { Calendar, History, User, Settings, ExternalLink, Code } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Chatbot } from "@/components/ui/chatbot";
 import { ProfileSection } from "./ProfileSection";
+import { SettingsSection } from "./SettingsSection";
 
 interface DashboardProps {
   userData: { 
@@ -99,19 +100,19 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Card className="p-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">0</p>
+                      <p className="text-2xl font-bold text-success">0</p>
                       <p className="text-sm text-muted-foreground">Problems Solved</p>
                     </div>
                   </Card>
                   <Card className="p-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">0</p>
+                      <p className="text-2xl font-bold text-primary">0</p>
                       <p className="text-sm text-muted-foreground">Current Streak</p>
                     </div>
                   </Card>
                   <Card className="p-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-purple-600">0</p>
+                      <p className="text-2xl font-bold text-accent-foreground">0</p>
                       <p className="text-sm text-muted-foreground">Total Time</p>
                     </div>
                   </Card>
@@ -122,10 +123,10 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
                   <h3 className="text-lg font-semibold">Recent Activity</h3>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <span className="text-green-600 font-bold">✓</span>
-                        </div>
+                                              <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
+                            <span className="text-success font-bold">✓</span>
+                          </div>
                         <div>
                           <p className="font-medium">No recent activity</p>
                           <p className="text-sm text-muted-foreground">Start solving problems to see your history</p>
@@ -142,8 +143,8 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
                     {currentUserData.leetcodeProfile ? (
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                            <span className="text-orange-600 font-bold text-sm">LC</span>
+                          <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
+                            <span className="text-orange-500 font-bold text-sm">LC</span>
                           </div>
                           <div>
                             <p className="font-medium">LeetCode</p>
@@ -157,8 +158,8 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
                     ) : (
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                            <span className="text-orange-600 font-bold text-sm">LC</span>
+                          <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
+                            <span className="text-orange-500 font-bold text-sm">LC</span>
                           </div>
                           <div>
                             <p className="font-medium">LeetCode</p>
@@ -174,8 +175,8 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
                     {currentUserData.geeksforgeeksProfile ? (
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                            <span className="text-green-600 font-bold text-sm">GFG</span>
+                          <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
+                            <span className="text-success font-bold text-sm">GFG</span>
                           </div>
                           <div>
                             <p className="font-medium">GeeksForGeeks</p>
@@ -346,86 +347,7 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
         return <ProfileSection userData={currentUserData} onProfileUpdate={handleProfileUpdate} />;
       
       case "settings":
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Settings
-              </CardTitle>
-              <CardDescription>Configure your application preferences</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Notification Settings */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Notifications</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Email Notifications</p>
-                        <p className="text-sm text-muted-foreground">Receive updates about your progress</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Configure
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Study Reminders</p>
-                        <p className="text-sm text-muted-foreground">Daily reminders to practice DSA</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Configure
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Theme Settings */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Appearance</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Theme</p>
-                        <p className="text-sm text-muted-foreground">Choose your preferred theme</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Light
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Data & Privacy */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Data & Privacy</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Export Data</p>
-                        <p className="text-sm text-muted-foreground">Download your study data</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Export
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Delete Account</p>
-                        <p className="text-sm text-muted-foreground">Permanently delete your account</p>
-                      </div>
-                      <Button variant="destructive" size="sm">
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
+        return <SettingsSection userData={currentUserData} onLogout={onLogout} />;
       
       default:
         return <DashboardOverview userName={userData.name} />;
@@ -433,7 +355,7 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background text-foreground">
       <div className="w-64 flex-shrink-0">
         <Sidebar 
           activeSection={activeSection}
@@ -442,7 +364,7 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
         />
       </div>
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-background">
         <div className="p-8">
           {renderContent()}
         </div>

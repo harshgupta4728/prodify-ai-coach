@@ -202,4 +202,31 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
+// Delete account
+router.delete('/account', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Import Task model
+    const Task = require('../models/Task');
+
+    // Delete all tasks associated with the user
+    await Task.deleteMany({ userId: req.user._id });
+
+    // Delete the user
+    await User.findByIdAndDelete(req.user._id);
+
+    res.json({
+      message: 'Account deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Server error during account deletion.' });
+  }
+});
+
 module.exports = router; 

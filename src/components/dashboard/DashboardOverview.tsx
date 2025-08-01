@@ -33,7 +33,7 @@ export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="bg-gradient-secondary rounded-xl p-8 relative overflow-hidden">
+      <div className="bg-gradient-to-br from-secondary to-muted rounded-xl p-8 relative overflow-hidden">
         <div className="relative z-10">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Welcome back, {userName}! 👋
@@ -101,7 +101,7 @@ export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
         </div>
 
         {/* AI Recommendations */}
-        <Card className="border-primary/20 bg-gradient-accent/5 hover:shadow-soft transition-shadow">
+        <Card className="border-primary/20 bg-gradient-to-br from-accent/5 to-primary/5 hover:shadow-soft transition-shadow">
           <CardHeader>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">

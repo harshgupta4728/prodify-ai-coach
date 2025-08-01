@@ -18,7 +18,7 @@ const sidebarItems = [
 
 export const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => {
   return (
-    <div className="flex flex-col h-full bg-card border-r border-border">
+    <div className="flex flex-col h-full bg-card/50 backdrop-blur-sm border-r border-border">
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ export const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarPro
                 className={cn(
                   "w-full justify-start gap-3 h-11 transition-all duration-200",
                   isActive 
-                    ? "bg-gradient-primary text-white shadow-soft hover:opacity-90" 
+                    ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-soft hover:opacity-90" 
                     : "hover:bg-accent hover:text-accent-foreground"
                 )}
                 onClick={() => onSectionChange(item.id)}

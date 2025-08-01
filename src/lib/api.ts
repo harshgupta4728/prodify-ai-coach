@@ -124,6 +124,17 @@ class ApiService {
     });
   }
 
+  async deleteAccount(): Promise<{ message: string }> {
+    try {
+      return await this.request<{ message: string }>('/auth/account', {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Delete account API error:', error);
+      throw error;
+    }
+  }
+
   // Health check
   async healthCheck(): Promise<{ status: string; message: string; timestamp: string }> {
     return this.request<{ status: string; message: string; timestamp: string }>('/health');
