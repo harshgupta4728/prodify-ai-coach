@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Chatbot } from "@/components/ui/chatbot";
 import { ProfileSection } from "./ProfileSection";
 import { SettingsSection } from "./SettingsSection";
+import { ProblemSolver } from "./ProblemSolver";
 
 interface DashboardProps {
   userData: { 
@@ -77,138 +78,21 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
               onAddLeetCode={goToProfiles}
               onAddGeeksForGeeks={goToProfiles}
             />
-            <DashboardOverview userName={currentUserData.name} />
+            <DashboardOverview 
+              userName={currentUserData.name} 
+              onNavigateToSection={setActiveSection}
+            />
           </div>
         );
       
       case "planner":
         return <Planner userEmail={currentUserData.email} />;
       
+      case "problems":
+        return <ProblemSolver onProblemAdded={() => setActiveSection("dashboard")} />;
+      
       case "history":
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Practice History
-              </CardTitle>
-              <CardDescription>Review your solved problems and progress</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Statistics Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="p-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-success">0</p>
-                      <p className="text-sm text-muted-foreground">Problems Solved</p>
-                    </div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-primary">0</p>
-                      <p className="text-sm text-muted-foreground">Current Streak</p>
-                    </div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-accent-foreground">0</p>
-                      <p className="text-sm text-muted-foreground">Total Time</p>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Recent Activity */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Recent Activity</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                                              <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
-                            <span className="text-success font-bold">✓</span>
-                          </div>
-                        <div>
-                          <p className="font-medium">No recent activity</p>
-                          <p className="text-sm text-muted-foreground">Start solving problems to see your history</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Platform Progress */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Platform Progress</h3>
-                  <div className="space-y-3">
-                    {currentUserData.leetcodeProfile ? (
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
-                            <span className="text-orange-500 font-bold text-sm">LC</span>
-                          </div>
-                          <div>
-                            <p className="font-medium">LeetCode</p>
-                            <p className="text-sm text-muted-foreground">Connect your profile to see progress</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          View Profile
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
-                            <span className="text-orange-500 font-bold text-sm">LC</span>
-                          </div>
-                          <div>
-                            <p className="font-medium">LeetCode</p>
-                            <p className="text-sm text-muted-foreground">Connect your profile to track progress</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => setActiveSection("profiles")}>
-                          Connect
-                        </Button>
-                      </div>
-                    )}
-
-                    {currentUserData.geeksforgeeksProfile ? (
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
-                            <span className="text-success font-bold text-sm">GFG</span>
-                          </div>
-                          <div>
-                            <p className="font-medium">GeeksForGeeks</p>
-                            <p className="text-sm text-muted-foreground">Connect your profile to see progress</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          View Profile
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                            <span className="text-green-600 font-bold text-sm">GFG</span>
-                          </div>
-                          <div>
-                            <p className="font-medium">GeeksForGeeks</p>
-                            <p className="text-sm text-muted-foreground">Connect your profile to track progress</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => setActiveSection("profiles")}>
-                          Connect
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
+        return <ProblemSolver onProblemAdded={() => setActiveSection("dashboard")} />;
       
       case "profiles":
         return (

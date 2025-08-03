@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,24 +12,71 @@ import {
   Lightbulb,
   ArrowRight,
   Code,
-  Trophy
+  Trophy,
+  Plus
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/lib/api";
 import aiAssistant from "@/assets/ai-assistant.jpg";
 
 interface DashboardOverviewProps {
   userName: string;
+  onNavigateToSection?: (section: string) => void;
 }
 
-export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
+export const DashboardOverview = ({ userName, onNavigateToSection }: DashboardOverviewProps) => {
+  const { toast } = useToast();
+  const [progress, setProgress] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const todayTasks = [
     { id: 1, title: "Complete Binary Tree Problems", due: "Today", completed: false },
     { id: 2, title: "Review Dynamic Programming", due: "Today", completed: true },
     { id: 3, title: "Practice Linked List", due: "Tomorrow", completed: false },
   ];
 
-  const currentStreak = 15;
-  const problemsSolved = 247;
-  const currentRating = 1420;
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const [progressData, recommendationsData] = await Promise.all([
+        apiService.getProgress(),
+        apiService.getRecommendations()
+      ]);
+      
+      setProgress(progressData.progress);
+      setRecommendations(recommendationsData.recommendations || []);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast({
+        title: "Error loading data",
+        description: "Failed to load your progress data. Please refresh the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddProblem = () => {
+    if (onNavigateToSection) {
+      onNavigateToSection('problems');
+    }
+  };
+
+  const handleRecommendationAction = (recommendation: any) => {
+    if (onNavigateToSection) {
+      onNavigateToSection('problems');
+    }
+  };
+
+  // Use real data or fallback to defaults
+  const currentStreak = progress?.currentStreak || 0;
+  const problemsSolved = progress?.totalProblemsSolved || 0;
 
   return (
     <div className="space-y-6">
@@ -62,13 +110,13 @@ export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="hover:shadow-soft transition-shadow">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Current Rating</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Weekly Goal</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{currentRating}</div>
+              <div className="text-2xl font-bold text-primary">{progress?.weeklyGoal || 15}</div>
               <div className="flex items-center gap-1 text-sm text-success">
-                <TrendingUp className="h-4 w-4" />
-                +24 this week
+                <Target className="h-4 w-4" />
+                problems per week
               </div>
             </CardContent>
           </Card>
@@ -115,23 +163,55 @@ export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <img 
-                  src={aiAssistant} 
-                  alt="AI Assistant" 
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-medium mb-1">Great job on Arrays! 🎉</p>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    You've mastered array problems. Time to tackle Linked Lists next!
-                  </p>
-                  <Button size="sm" variant="outline" className="gap-2">
-                    Start Linked Lists
-                    <ArrowRight className="h-3 w-3" />
-                  </Button>
+              {recommendations.length > 0 ? (
+                recommendations.slice(0, 2).map((rec, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <img 
+                      src={aiAssistant} 
+                      alt="AI Assistant" 
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium mb-1">{rec.title}</p>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {rec.description}
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-2"
+                        onClick={() => handleRecommendationAction(rec)}
+                      >
+                        {rec.action}
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-start gap-3">
+                  <img 
+                    src={aiAssistant} 
+                    alt="AI Assistant" 
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium mb-1">Start Your Journey! 🚀</p>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Begin with basic array problems to build your foundation.
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="gap-2"
+                      onClick={handleAddProblem}
+                    >
+                      Add First Problem
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -176,7 +256,10 @@ export const DashboardOverview = ({ userName }: DashboardOverviewProps) => {
                 </div>
               </div>
 
-              <Button className="w-full mt-4 bg-gradient-primary hover:opacity-90">
+              <Button 
+                className="w-full mt-4 bg-gradient-primary hover:opacity-90"
+                onClick={handleAddProblem}
+              >
                 Continue Learning
               </Button>
             </div>

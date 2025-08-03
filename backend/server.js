@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 // Import routes
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
+const progressRoutes = require('./routes/progress');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,6 +15,9 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -45,6 +49,7 @@ const transporter = nodemailer.createTransport({
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/progress', progressRoutes);
 
 // Email sending endpoint
 app.post('/api/send-email', async (req, res) => {

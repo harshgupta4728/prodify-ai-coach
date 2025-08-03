@@ -1,9 +1,40 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Accept only image files
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -226,6 +257,107 @@ router.delete('/account', auth, async (req, res) => {
   } catch (error) {
     console.error('Delete account error:', error);
     res.status(500).json({ error: 'Server error during account deletion.' });
+  }
+});
+
+// Upload profile picture
+router.post('/profile-picture', auth, upload.single('profilePicture'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Delete old profile picture if it exists
+    if (user.profilePicture) {
+      // Extract filename from the stored path
+      const filename = user.profilePicture.split('/').pop();
+      if (filename) {
+        const oldPicturePath = path.join(__dirname, '..', 'uploads', filename);
+        if (fs.existsSync(oldPicturePath)) {
+          fs.unlinkSync(oldPicturePath);
+        }
+      }
+    }
+
+    // Update user's profile picture
+    user.profilePicture = `/uploads/${req.file.filename}`;
+    await user.save();
+
+    res.json({
+      message: 'Profile picture uploaded successfully',
+      profilePicture: user.profilePicture,
+      user: user.toJSON()
+    });
+
+  } catch (error) {
+    console.error('Profile picture upload error:', error);
+    
+    // Delete uploaded file if there was an error
+    if (req.file) {
+      const filePath = path.join(__dirname, '..', req.file.path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    
+    res.status(500).json({ error: 'Server error during profile picture upload.' });
+  }
+});
+
+// Remove profile picture
+router.delete('/profile-picture', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    console.log('Removing profile picture for user:', user._id);
+    console.log('Current profile picture path:', user.profilePicture);
+
+    // Delete profile picture file if it exists
+    if (user.profilePicture) {
+      // Extract filename from the stored path (e.g., "/uploads/profile-123.jpg" -> "profile-123.jpg")
+      const filename = user.profilePicture.split('/').pop();
+      console.log('Extracted filename:', filename);
+      
+      if (filename) {
+        const picturePath = path.join(__dirname, '..', 'uploads', filename);
+        console.log('Full picture path:', picturePath);
+        
+        if (fs.existsSync(picturePath)) {
+          console.log('File exists, deleting...');
+          fs.unlinkSync(picturePath);
+          console.log('File deleted successfully');
+        } else {
+          console.log('File does not exist at path:', picturePath);
+        }
+      }
+    } else {
+      console.log('No profile picture to remove');
+    }
+
+    // Remove profile picture from user
+    user.profilePicture = '';
+    await user.save();
+    console.log('Profile picture removed from database');
+
+    res.json({
+      message: 'Profile picture removed successfully',
+      user: user.toJSON()
+    });
+
+  } catch (error) {
+    console.error('Profile picture removal error:', error);
+    res.status(500).json({ 
+      error: 'Server error during profile picture removal.',
+      details: error.message 
+    });
   }
 });
 

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Edit, Camera, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/lib/api";
+import { config } from "@/lib/config";
 
 interface ProfileSectionProps {
   userData: {
@@ -21,6 +22,7 @@ interface ProfileSectionProps {
     portfolio?: string;
     leetcodeProfile?: string;
     geeksforgeeksProfile?: string;
+    profilePicture?: string;
   };
   onProfileUpdate: (updatedUser: any) => void;
 }
@@ -29,6 +31,7 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [profileData, setProfileData] = useState({
     name: userData.name,
     bio: userData.bio || "",
@@ -79,6 +82,48 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
     setIsEditing(false);
   };
 
+  const handleProfilePictureUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const response = await apiService.uploadProfilePicture(file);
+      onProfileUpdate(response.user);
+      toast({
+        title: "Profile picture updated!",
+        description: "Your profile picture has been successfully uploaded.",
+      });
+    } catch (error) {
+      console.error('Profile picture upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    setIsUploading(true);
+    try {
+      const response = await apiService.removeProfilePicture();
+      onProfileUpdate(response.user);
+      toast({
+        title: "Profile picture removed!",
+        description: "Your profile picture has been successfully removed.",
+      });
+    } catch (error) {
+      console.error('Profile picture removal error:', error);
+      toast({
+        title: "Removal failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Profile Header */}
@@ -102,40 +147,56 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
           <div className="flex items-start space-x-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src="" alt={userData.name} />
+                <AvatarImage 
+                  src={userData.profilePicture ? `${config.apiBaseUrl.replace('/api', '')}${userData.profilePicture}` : ""} 
+                  alt={userData.name} 
+                />
                 <AvatarFallback className="text-lg">
                   {userData.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0"
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                          // For now, just show a toast notification
-                          toast({
-                            title: "Profile picture updated!",
-                            description: "Profile picture upload functionality will be implemented soon.",
-                          });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
-              )}
+                             {isEditing && (
+                 <div className="absolute -bottom-2 -right-2 flex gap-1">
+                   <Button
+                     size="sm"
+                     variant="outline"
+                     className="h-8 w-8 rounded-full p-0"
+                     disabled={isUploading}
+                     onClick={() => {
+                       const input = document.createElement('input');
+                       input.type = 'file';
+                       input.accept = 'image/*';
+                       input.onchange = (e) => {
+                         const target = e.target as HTMLInputElement;
+                         const file = target.files?.[0];
+                         if (file) {
+                           handleProfilePictureUpload(file);
+                         }
+                       };
+                       input.click();
+                     }}
+                     title="Upload new photo"
+                   >
+                     {isUploading ? (
+                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                     ) : (
+                       <Camera className="h-4 w-4" />
+                     )}
+                   </Button>
+                   {userData.profilePicture && (
+                     <Button
+                       size="sm"
+                       variant="outline"
+                       className="h-8 w-8 rounded-full p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                       disabled={isUploading}
+                       onClick={handleRemoveProfilePicture}
+                       title="Remove photo"
+                     >
+                       <X className="h-4 w-4" />
+                     </Button>
+                   )}
+                 </div>
+               )}
             </div>
             
             <div className="flex-1 space-y-4">
@@ -170,9 +231,9 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                     rows={3}
                   />
                 ) : (
-                  <p className="text-muted-foreground">
+                  <div className="text-muted-foreground whitespace-pre-wrap">
                     {profileData.bio || "No bio added yet."}
-                  </p>
+                  </div>
                 )}
               </div>
             </div>

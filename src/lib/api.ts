@@ -14,6 +14,7 @@ export interface User {
   portfolio?: string;
   leetcodeProfile?: string;
   geeksforgeeksProfile?: string;
+  profilePicture?: string;
   createdAt: string;
   lastLogin: string;
 }
@@ -124,6 +125,43 @@ class ApiService {
     });
   }
 
+  async uploadProfilePicture(file: File): Promise<{ message: string; profilePicture: string; user: User }> {
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    const url = `${API_BASE_URL}/auth/profile-picture`;
+    
+    const headers: HeadersInit = {};
+    if (this.getToken()) {
+      headers.Authorization = `Bearer ${this.getToken()}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Profile picture upload failed:', error);
+      throw error;
+    }
+  }
+
+  async removeProfilePicture(): Promise<{ message: string; user: User }> {
+    return this.request<{ message: string; user: User }>('/auth/profile-picture', {
+      method: 'DELETE',
+    });
+  }
+
   async deleteAccount(): Promise<{ message: string }> {
     try {
       return await this.request<{ message: string }>('/auth/account', {
@@ -138,6 +176,51 @@ class ApiService {
   // Health check
   async healthCheck(): Promise<{ status: string; message: string; timestamp: string }> {
     return this.request<{ status: string; message: string; timestamp: string }>('/health');
+  }
+
+  // Progress tracking
+  async getProgress(): Promise<any> {
+    return this.request<any>('/progress');
+  }
+
+  async addProblem(problemData: any): Promise<any> {
+    return this.request<any>('/progress/problem', {
+      method: 'POST',
+      body: JSON.stringify(problemData),
+    });
+  }
+
+  async getRecommendations(): Promise<any> {
+    return this.request<any>('/progress/recommendations');
+  }
+
+  async updateGoals(goals: { dailyGoal?: number; weeklyGoal?: number }): Promise<any> {
+    return this.request<any>('/progress/goals', {
+      method: 'PUT',
+      body: JSON.stringify(goals),
+    });
+  }
+
+  async getProblems(params?: { page?: number; limit?: number; topic?: string; difficulty?: string; platform?: string }): Promise<any> {
+    const queryParams = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+    return this.request<any>(`/progress/problems${queryParams}`);
+  }
+
+  // Problem Bank methods
+  async getProblemBank(params?: { topic?: string; difficulty?: string; page?: number; limit?: number }): Promise<any> {
+    const queryParams = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+    return this.request<any>(`/progress/problem-bank${queryParams}`);
+  }
+
+  async getProblemsByTopic(topic: string): Promise<any> {
+    return this.request<any>(`/progress/problems-by-topic/${topic}`);
+  }
+
+  async markProblemSolved(data: { problemId: string; solution?: string; language?: string; timeSpent?: number; notes?: string }): Promise<any> {
+    return this.request<any>('/progress/mark-solved', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 
