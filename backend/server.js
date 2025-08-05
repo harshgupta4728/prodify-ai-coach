@@ -120,6 +120,10 @@ app.post('/api/test', (req, res) => {
     body: req.body
   });
 });
+app.get('/', (req, res) => {
+  res.send('Prodify AI Coach backend is running!');
+});
+
 
 // Start server
 app.listen(PORT, () => {
