@@ -1,4 +1,6 @@
 require('dotenv').config();
+console.log("✅ MONGODB_URI:", process.env.MONGODB_URI);
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -28,7 +30,7 @@ app.use('/uploads', express.static('uploads'));
 // Connect to MongoDB
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/prodify-ai-coach', {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:HgTg@4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });

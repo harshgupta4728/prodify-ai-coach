@@ -20,7 +20,8 @@
 
 3. Configure environment variables:
    - Copy `config.env` and update the values as needed
-   - Make sure MongoDB is running on `mongodb://localhost:27017/prodify-ai-coach`
+   - Make sure MongoDB is running on `MONGODB_URI=mongodb+srv://harshgupta4728:harshgupta4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify
+`
    - Update JWT_SECRET for production
 
 4. Start the backend server:

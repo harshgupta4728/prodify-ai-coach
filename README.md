@@ -118,7 +118,8 @@ Prodify AI Coach is a full-stack web application designed to help students and d
    
    **Backend `.env`:**
    ```env
-   MONGODB_URI=mongodb://localhost:27017/prodify-ai-coach
+   MONGODB_URI=MONGODB_URI=mongodb+srv://harshgupta4728:harshgupta4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify
+
    JWT_SECRET=your_jwt_secret_here
    EMAIL_USER=your_email@gmail.com
    EMAIL_PASS=your_app_password

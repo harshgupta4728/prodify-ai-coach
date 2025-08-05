@@ -5,7 +5,7 @@ require('dotenv').config();
 
 async function testTodaysProblem() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/prodify-ai-coach');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:HgTg@4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify');
     console.log('Connected to MongoDB');
 
     // Check if TodaysProblemBank has problems
