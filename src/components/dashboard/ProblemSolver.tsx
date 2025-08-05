@@ -15,7 +15,9 @@ import {
   Code,
   BookOpen,
   Trophy,
-  Play
+  Play,
+  ExternalLink,
+  Calendar
 } from "lucide-react";
 
 interface ProblemSolverProps {
@@ -29,6 +31,8 @@ export const ProblemSolver = ({ onProblemAdded }: ProblemSolverProps) => {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
+  const [todaysProblems, setTodaysProblems] = useState<any[]>([]);
+  const [isLoadingTodaysProblems, setIsLoadingTodaysProblems] = useState(false);
 
   const topics = [
     'arrays', 'strings', 'linkedLists', 'trees', 'graphs',
@@ -40,6 +44,7 @@ export const ProblemSolver = ({ onProblemAdded }: ProblemSolverProps) => {
   useEffect(() => {
     loadProgress();
     loadRecommendations();
+    loadTodaysProblems();
   }, []);
 
   const loadProgress = async () => {
@@ -57,6 +62,23 @@ export const ProblemSolver = ({ onProblemAdded }: ProblemSolverProps) => {
       setRecommendations(data.recommendations || []);
     } catch (error) {
       console.error('Error loading recommendations:', error);
+    }
+  };
+
+  const loadTodaysProblems = async () => {
+    try {
+      setIsLoadingTodaysProblems(true);
+      const data = await apiService.getTodaysProblem();
+      if (data.todaysProblem) {
+        setTodaysProblems([data.todaysProblem]);
+      } else {
+        setTodaysProblems([]);
+      }
+    } catch (error) {
+      console.error('Error loading today\'s problems:', error);
+      setTodaysProblems([]);
+    } finally {
+      setIsLoadingTodaysProblems(false);
     }
   };
 
@@ -87,6 +109,7 @@ export const ProblemSolver = ({ onProblemAdded }: ProblemSolverProps) => {
     return (
       <ProblemInterface
         topic={selectedTopic}
+        problemId={selectedProblemId}
         onBack={handleBackToTopics}
         onProblemSolved={handleProblemSolved}
       />
@@ -142,6 +165,67 @@ export const ProblemSolver = ({ onProblemAdded }: ProblemSolverProps) => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Today's Recommended Problems */}
+      {todaysProblems.length > 0 && (
+        <Card className="border-2 border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Problem of the Day
+            </CardTitle>
+            <CardDescription>
+              Solve today's problem to maintain your streak!
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingTodaysProblems ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {todaysProblems.map((problem, index) => (
+                  <div key={index} className="flex items-start justify-between p-4 border rounded-lg">
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-lg">{problem.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={problem.difficulty === 'easy' ? 'default' : problem.difficulty === 'medium' ? 'secondary' : 'destructive'}
+                        >
+                          {problem.difficulty}
+                        </Badge>
+                        <Badge variant="outline">
+                          {problem.topics?.[0] || 'DSA'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {progress?.currentStreak > 0 ? `You're on a ${progress.currentStreak}-day streak!` : 'Start your learning journey today!'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => handleStartTopic('todays-problem')}
+                        className="bg-gradient-primary hover:opacity-90"
+                      >
+                        <Code className="h-4 w-4 mr-2" />
+                        Solve Today's Problem
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(problem.problemUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Recommendations */}

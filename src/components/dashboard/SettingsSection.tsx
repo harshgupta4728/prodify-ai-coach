@@ -5,9 +5,7 @@ import {
   Moon, 
   Sun, 
   Monitor, 
-  Download, 
   Trash2, 
-  Shield, 
   Palette,
   User,
   Mail,
@@ -17,7 +15,8 @@ import {
   Database,
   AlertTriangle,
   CheckCircle,
-  X
+  X,
+  RotateCcw
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { apiService } from "@/lib/api";
+import { getNotificationSettings } from "@/lib/notification-utils";
 
 interface SettingsSectionProps {
   userData: {
@@ -56,74 +56,85 @@ interface SettingsSectionProps {
 }
 
 export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) => {
-  const [notifications, setNotifications] = useState({
-    email: true,
-    studyReminders: true,
-    progressUpdates: false,
-    weeklyReports: true,
+  const [notifications, setNotifications] = useState(() => {
+    // Load saved notification settings from localStorage
+    const saved = localStorage.getItem('prodify-notification-settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (error) {
+        console.error('Error parsing saved notification settings:', error);
+      }
+    }
+    // Default values
+    return {
+      email: true,
+      browserNotifications: true,
+    };
   });
 
-  const [privacy, setPrivacy] = useState({
-    profileVisibility: "public",
-    showProgress: true,
-    allowAnalytics: true,
-  });
+
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
-  const handleNotificationChange = (key: keyof typeof notifications) => {
-    setNotifications(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  const handleNotificationChange = async (key: keyof typeof notifications) => {
+    if (key === 'browserNotifications') {
+      if (!notifications.browserNotifications) {
+        // Request browser notification permission
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          toast({
+            title: "Permission Denied",
+            description: "Browser notifications are disabled. Please enable them in your browser settings.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    const newSettings = {
+      ...notifications,
+      [key]: !notifications[key]
+    };
+    
+    setNotifications(newSettings);
+    
+    // Save to localStorage
+    localStorage.setItem('prodify-notification-settings', JSON.stringify(newSettings));
+    
     toast({
       title: "Notification settings updated",
       description: `${key.replace(/([A-Z])/g, ' $1').toLowerCase()} ${!notifications[key] ? 'enabled' : 'disabled'}`,
     });
   };
 
-  const handlePrivacyChange = (key: keyof typeof privacy, value: any) => {
-    setPrivacy(prev => ({
-      ...prev,
-      [key]: value
-    }));
-    toast({
-      title: "Privacy settings updated",
-      description: "Your privacy preferences have been saved.",
-    });
-  };
 
-  const handleExportData = async () => {
+
+  const handleResetProgress = async () => {
+    setIsResetting(true);
     try {
-      // Simulate data export
-      const data = {
-        user: userData,
-        settings: { notifications, privacy },
-        timestamp: new Date().toISOString(),
-      };
-      
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `prodify-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
+      await apiService.resetProgress();
       toast({
-        title: "Data exported successfully",
-        description: "Your data has been downloaded.",
+        title: "Progress Reset",
+        description: "Your progress has been reset successfully. All solved problems and stats have been cleared.",
       });
     } catch (error) {
+      console.error('Reset progress error:', error);
       toast({
-        title: "Export failed",
-        description: "Failed to export your data. Please try again.",
+        title: "Reset failed",
+        description: error.message || "Failed to reset progress. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsResetting(false);
     }
   };
+
+
+
+
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
@@ -193,11 +204,8 @@ export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) =>
                   <p className="text-sm">{userData.major}</p>
                 </div>
               )}
-            </div>
-            <Button variant="outline" size="sm">
-              Edit Profile
-            </Button>
-          </CardContent>
+                         </div>
+           </CardContent>
         </Card>
 
         {/* Appearance */}
@@ -209,26 +217,9 @@ export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) =>
             </CardTitle>
             <CardDescription>Customize how the app looks and feels</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Theme</label>
-              <ThemeToggle />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Compact Mode</p>
-                <p className="text-xs text-muted-foreground">Reduce spacing for more content</p>
-              </div>
-              <Switch />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Show Animations</p>
-                <p className="text-xs text-muted-foreground">Enable smooth transitions</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </CardContent>
+                     <CardContent className="space-y-4">
+             <ThemeToggle />
+           </CardContent>
         </Card>
 
         {/* Notifications */}
@@ -240,101 +231,31 @@ export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) =>
             </CardTitle>
             <CardDescription>Choose what notifications you want to receive</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Email Notifications</p>
-                <p className="text-xs text-muted-foreground">Receive updates via email</p>
+                     <CardContent className="space-y-4">
+             <div className="flex items-center justify-between">
+               <div className="space-y-1">
+                 <p className="text-sm font-medium">Email Notifications</p>
+                 <p className="text-xs text-muted-foreground">Receive updates via email</p>
+               </div>
+               <Switch 
+                 checked={notifications.email}
+                 onCheckedChange={() => handleNotificationChange('email')}
+               />
+             </div>
+                           <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Browser Notifications</p>
+                  <p className="text-xs text-muted-foreground">Receive notifications in your browser</p>
+                </div>
+                <Switch 
+                  checked={notifications.browserNotifications}
+                  onCheckedChange={() => handleNotificationChange('browserNotifications')}
+                />
               </div>
-              <Switch 
-                checked={notifications.email}
-                onCheckedChange={() => handleNotificationChange('email')}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Study Reminders</p>
-                <p className="text-xs text-muted-foreground">Daily reminders to practice DSA</p>
-              </div>
-              <Switch 
-                checked={notifications.studyReminders}
-                onCheckedChange={() => handleNotificationChange('studyReminders')}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Progress Updates</p>
-                <p className="text-xs text-muted-foreground">Weekly progress summaries</p>
-              </div>
-              <Switch 
-                checked={notifications.progressUpdates}
-                onCheckedChange={() => handleNotificationChange('progressUpdates')}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Weekly Reports</p>
-                <p className="text-xs text-muted-foreground">Detailed weekly performance reports</p>
-              </div>
-              <Switch 
-                checked={notifications.weeklyReports}
-                onCheckedChange={() => handleNotificationChange('weeklyReports')}
-              />
-            </div>
-          </CardContent>
+           </CardContent>
         </Card>
 
-        {/* Privacy & Security */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Privacy & Security
-            </CardTitle>
-            <CardDescription>Control your privacy and security settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Profile Visibility</label>
-              <div className="flex gap-2">
-                <Button 
-                  variant={privacy.profileVisibility === "public" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handlePrivacyChange('profileVisibility', 'public')}
-                >
-                  Public
-                </Button>
-                <Button 
-                  variant={privacy.profileVisibility === "private" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handlePrivacyChange('profileVisibility', 'private')}
-                >
-                  Private
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Show Progress Publicly</p>
-                <p className="text-xs text-muted-foreground">Allow others to see your progress</p>
-              </div>
-              <Switch 
-                checked={privacy.showProgress}
-                onCheckedChange={(checked) => handlePrivacyChange('showProgress', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Analytics</p>
-                <p className="text-xs text-muted-foreground">Help improve the app with usage data</p>
-              </div>
-              <Switch 
-                checked={privacy.allowAnalytics}
-                onCheckedChange={(checked) => handlePrivacyChange('allowAnalytics', checked)}
-              />
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Data Management */}
         <Card>
@@ -343,18 +264,51 @@ export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) =>
               <Database className="h-5 w-5" />
               Data Management
             </CardTitle>
-            <CardDescription>Export or delete your data</CardDescription>
+            <CardDescription>Reset or delete your data</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-medium">Export Data</p>
-                <p className="text-xs text-muted-foreground">Download all your data as JSON</p>
+                <p className="text-sm font-medium text-destructive">Reset Progress</p>
+                <p className="text-xs text-muted-foreground">Clear all your solved problems and stats</p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleExportData}>
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={isResetting}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    {isResetting ? "Resetting..." : "Reset Progress"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                      Reset Progress
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to reset your progress? This action will:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Delete all your solved problems</li>
+                        <li>Reset your streak to 0</li>
+                        <li>Clear all topic progress</li>
+                        <li>Reset your rating to 1200</li>
+                        <li>Remove all achievements</li>
+                      </ul>
+                      <strong className="text-destructive">This action cannot be undone!</strong>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleResetProgress}
+                      disabled={isResetting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isResetting ? "Resetting..." : "Reset Progress"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             <Separator />
             <div className="flex items-center justify-between">

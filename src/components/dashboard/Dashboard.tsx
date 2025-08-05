@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { DashboardOverview } from "./DashboardOverview";
 import { Planner } from "./Planner";
@@ -6,12 +7,14 @@ import { LeetCodeProfileEditor } from "./LeetCodeProfileEditor";
 import { GeeksForGeeksProfileEditor } from "./GeeksForGeeksProfileEditor";
 import { ProfileNotification } from "./ProfileNotification";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, History, User, Settings, ExternalLink, Code } from "lucide-react";
+import { Calendar, User, Settings, ExternalLink, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chatbot } from "@/components/ui/chatbot";
 import { ProfileSection } from "./ProfileSection";
 import { SettingsSection } from "./SettingsSection";
-import { ProblemSolver } from "./ProblemSolver";
+import { TodaysProblem } from "./TodaysProblem";
+import { TopicProgress } from "./TopicProgress";
+import { ProblemInterface } from "./ProblemInterface";
 
 interface DashboardProps {
   userData: { 
@@ -30,10 +33,19 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [currentUserData, setCurrentUserData] = useState(userData);
   const leetcodeEditorRef = React.useRef<{ open: () => void }>(null);
   const geeksforgeeksEditorRef = React.useRef<{ open: () => void }>(null);
+
+  // Get active section from URL or default to dashboard
+  const activeSection = searchParams.get("section") || "dashboard";
+
+  // Update URL when section changes
+  const setActiveSection = (section: string) => {
+    setSearchParams({ section });
+  };
 
   const handleProfileUpdate = (updatedUser: any) => {
     setCurrentUserData(updatedUser);
@@ -88,11 +100,14 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
       case "planner":
         return <Planner userEmail={currentUserData.email} />;
       
-      case "problems":
-        return <ProblemSolver onProblemAdded={() => setActiveSection("dashboard")} />;
+      case "todays-problem":
+        return <TodaysProblem />;
       
-      case "history":
-        return <ProblemSolver onProblemAdded={() => setActiveSection("dashboard")} />;
+      case "topic-progress":
+        return <TopicProgress onNavigateToSection={setActiveSection} />;
+      
+      case "problem-interface":
+        return <ProblemInterface onBack={() => setActiveSection("topic-progress")} />;
       
       case "profiles":
         return (

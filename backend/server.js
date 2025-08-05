@@ -4,6 +4,12 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 
+// Set default JWT_SECRET if not provided
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'your-super-secret-jwt-key-change-this-in-production';
+  console.log('Warning: Using default JWT_SECRET. Please set JWT_SECRET in your .env file for production.');
+}
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
@@ -56,6 +62,11 @@ app.post('/api/send-email', async (req, res) => {
   try {
     const { to, subject, body } = req.body;
     
+    console.log('=== BACKEND EMAIL DEBUG ===');
+    console.log('📨 Received email request:', { to, subject, bodyLength: body?.length });
+    console.log('📧 Email will be sent TO:', to);
+    console.log('📤 Email will be sent FROM:', process.env.EMAIL_USER || 'harshgupta4728@gmail.com');
+    
     const mailOptions = {
       from: process.env.EMAIL_USER || 'harshgupta4728@gmail.com',
       to: to,
@@ -63,7 +74,14 @@ app.post('/api/send-email', async (req, res) => {
       html: body
     };
 
+    console.log('📋 Mail options:', mailOptions);
+    
     const info = await transporter.sendMail(mailOptions);
+    
+    console.log('✅ Email sent successfully!');
+    console.log('📬 Message ID:', info.messageId);
+    console.log('📧 Recipient:', to);
+    console.log('=== END BACKEND EMAIL DEBUG ===');
     
     res.json({
       success: true,
@@ -72,7 +90,7 @@ app.post('/api/send-email', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Email sending error:', error);
+    console.error('❌ Email sending error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to send email'
@@ -89,6 +107,15 @@ app.get('/api/health', (req, res) => {
     message: 'Prodify AI Coach Backend is running',
     database: dbStatus,
     timestamp: new Date().toISOString()
+  });
+});
+
+// Test endpoint
+app.post('/api/test', (req, res) => {
+  console.log('Test endpoint called with body:', req.body);
+  res.json({ 
+    message: 'Test endpoint working',
+    body: req.body
   });
 });
 

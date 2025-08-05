@@ -109,9 +109,21 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 
 // Method to get user data without password
 userSchema.methods.toJSON = function() {
-  const user = this.toObject();
-  delete user.password;
-  return user;
+  try {
+    const user = this.toObject();
+    delete user.password;
+    return user;
+  } catch (error) {
+    console.error('Error in toJSON method:', error);
+    // Return a safe fallback
+    return {
+      _id: this._id,
+      name: this.name,
+      email: this.email,
+      createdAt: this.createdAt,
+      lastLogin: this.lastLogin
+    };
+  }
 };
 
 module.exports = mongoose.model('User', userSchema); 

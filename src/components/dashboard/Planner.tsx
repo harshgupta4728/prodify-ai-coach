@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Plus, Edit, Trash2, CheckCircle, Clock, AlertCircle, CalendarDays, Target, BookOpen, Code, Bell, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sendNotification } from "@/lib/notification-utils";
+import { apiService } from "@/lib/api";
 
 interface Task {
-  id: string;
+  _id: string;
   title: string;
   description: string;
   category: 'study' | 'practice' | 'interview' | 'review' | 'other';
@@ -48,7 +50,10 @@ const PRIORITIES = [
 ];
 
 export const Planner = ({ userEmail }: PlannerProps) => {
+  console.log('🔍 Planner component received userEmail:', userEmail);
+  
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
@@ -66,25 +71,30 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     reminderTime: 60 // minutes before deadline
   });
 
-  // Load tasks from localStorage on component mount
+  // Load tasks from API on component mount
   useEffect(() => {
-    const savedTasks = localStorage.getItem('planner-tasks');
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
-    }
+    const loadTasks = async () => {
+      try {
+        setLoading(true);
+        const fetchedTasks = await apiService.getTasks();
+        setTasks(fetchedTasks);
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTasks();
     
+    // Load notification settings from localStorage (user preference)
     const savedSettings = localStorage.getItem('planner-notification-settings');
     if (savedSettings) {
       setNotificationSettings(JSON.parse(savedSettings));
     }
   }, []);
 
-  // Save tasks to localStorage whenever tasks change
-  useEffect(() => {
-    localStorage.setItem('planner-tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  // Save notification settings
+  // Save notification settings to localStorage
   useEffect(() => {
     localStorage.setItem('planner-notification-settings', JSON.stringify(notificationSettings));
   }, [notificationSettings]);
@@ -102,7 +112,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
       
       console.log(`Checking ${pendingTasks.length} pending tasks for notifications...`);
 
-      pendingTasks.forEach(task => {
+      pendingTasks.forEach(async (task) => {
         const deadline = new Date(task.deadline);
         const timeUntilDeadline = deadline.getTime() - now.getTime();
         const minutesUntilDeadline = timeUntilDeadline / (1000 * 60);
@@ -114,12 +124,18 @@ export const Planner = ({ userEmail }: PlannerProps) => {
             minutesUntilDeadline > 0 && 
             !task.notificationSent) {
           console.log(`Sending notification for task: ${task.title}`);
-          sendEmailNotification(task);
+          await sendTaskNotification(task);
           
-          // Mark notification as sent
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { ...t, notificationSent: true } : t
-          ));
+          // Mark notification as sent in database
+          try {
+            await apiService.markNotificationSent(task._id);
+            // Update local state
+            setTasks(prev => prev.map(t => 
+              t._id === task._id ? { ...t, notificationSent: true } : t
+            ));
+          } catch (error) {
+            console.error('Error marking notification as sent:', error);
+          }
         }
       });
     };
@@ -133,82 +149,24 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     return () => clearInterval(interval);
   }, [tasks, notificationSettings, userEmail]);
 
-  const sendEmailNotification = async (task: Task) => {
+  const sendTaskNotification = async (task: Task) => {
     try {
-      console.log(`Sending email notification to ${userEmail} for task: ${task.title}`);
+      console.log('🔔 sendTaskNotification called for task:', task.title);
+      console.log('👤 Current userEmail in Planner:', userEmail);
+      console.log('⚙️ Notification settings:', notificationSettings);
       
-      const emailData = {
-        to: userEmail,
-        subject: `🚨 Task Deadline Reminder: ${task.title}`,
-        body: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-              <h2 style="color: #e67e22; margin-bottom: 20px;">⚠️ Task Deadline Reminder</h2>
-              
-              <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
-                Hi there! Your task is due soon and needs your attention.
-              </p>
-              
-              <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
-                <h3 style="color: #856404; margin-top: 0;">Task Details:</h3>
-                <ul style="color: #856404; padding-left: 20px;">
-                  <li><strong>Title:</strong> ${task.title}</li>
-                  <li><strong>Description:</strong> ${task.description || 'No description'}</li>
-                  <li><strong>Category:</strong> ${CATEGORIES.find(c => c.value === task.category)?.label}</li>
-                  <li><strong>Priority:</strong> ${PRIORITIES.find(p => p.value === task.priority)?.label}</li>
-                  <li><strong>Deadline:</strong> ${new Date(task.deadline).toLocaleString()}</li>
-                  <li><strong>Time Remaining:</strong> ${notificationSettings.reminderTime} minutes</li>
-                </ul>
-              </div>
-              
-              <p style="font-size: 14px; color: #666; margin-bottom: 20px;">
-                Please complete this task as soon as possible to stay on track with your DSA preparation!
-              </p>
-              
-              <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                <p style="color: #999; font-size: 12px;">
-                  Best regards,<br>
-                  Your Prodify AI Mentor
-                </p>
-              </div>
-            </div>
-          </div>
-        `
-      };
+      // Send notifications using the centralized notification system
+      await sendNotification(
+        'Task Deadline Reminder',
+        `Your task "${task.title}" is due in ${notificationSettings.reminderTime} minutes!`,
+        'both',
+        userEmail
+      );
       
-      // Send email using backend API
-      const response = await fetch('http://localhost:3001/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailData)
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('Email sent successfully:', result.messageId);
-      } else {
-        console.error('Failed to send email:', result.error);
-      }
-      
-      // Show browser notification if supported
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Task Deadline Reminder', {
-          body: `Your task "${task.title}" is due in ${notificationSettings.reminderTime} minutes!`,
-          icon: '/favicon.ico'
-        });
-      }
+      console.log('✅ Notification sent successfully for task:', task.title);
       
     } catch (error) {
-      console.error('Error sending email notification:', error);
-      // Fallback to console log for development
-      console.log('Email notification data (fallback):', {
-        to: userEmail,
-        subject: `🚨 Task Deadline Reminder: ${task.title}`,
-        body: `Your task "${task.title}" is due in ${notificationSettings.reminderTime} minutes!`
-      });
+      console.error('❌ Error sending notification:', error);
     }
   };
 
@@ -218,59 +176,102 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     }
   };
 
-
-
-  const addTask = (taskData: Omit<Task, 'id' | 'createdAt'>) => {
-    const newTask: Task = {
-      ...taskData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      notificationSent: false,
-    };
-    setTasks(prev => [...prev, newTask]);
-    setIsAddDialogOpen(false);
+  const addTask = async (taskData: Omit<Task, '_id' | 'createdAt' | 'completed' | 'notificationSent'>) => {
+    try {
+      const newTask = await apiService.createTask({
+        title: taskData.title,
+        description: taskData.description,
+        category: taskData.category,
+        priority: taskData.priority,
+        deadline: taskData.deadline,
+        tags: taskData.tags
+      });
+      
+      setTasks(prev => [newTask, ...prev]);
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating task:', error);
+    }
   };
 
-  const updateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId ? { ...task, ...updates } : task
-    ));
-    setEditingTask(null);
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const updatedTask = await apiService.updateTask(taskId, updates);
+      setTasks(prev => prev.map(task => 
+        task._id === taskId ? updatedTask : task
+      ));
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
   };
 
-  const deleteTask = (taskId: string) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId));
+  const deleteTask = async (taskId: string) => {
+    try {
+      await apiService.deleteTask(taskId);
+      setTasks(prev => prev.filter(task => task._id !== taskId));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
   };
 
   const toggleTaskCompletion = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find(t => t._id === taskId);
     if (task && !task.completed) {
       // Show completion dialog for pending tasks
       setShowCompletionDialog(taskId);
     } else {
       // Mark as incomplete
-      setTasks(prev => prev.map(task => 
-        task.id === taskId ? { ...task, completed: false, completedAt: undefined } : task
-      ));
+      markTaskIncomplete(taskId);
     }
   };
 
-  const handleTaskCompletion = () => {
+  const markTaskIncomplete = async (taskId: string) => {
+    try {
+      await apiService.incompleteTask(taskId);
+      setTasks(prev => prev.map(task => 
+        task._id === taskId ? { 
+          ...task, 
+          completed: false, 
+          completedAt: undefined,
+          timeSpent: 0,
+          difficulty: 'medium',
+          notes: ''
+        } : task
+      ));
+    } catch (error) {
+      console.error('Error marking task incomplete:', error);
+    }
+  };
+
+  const handleTaskCompletion = async () => {
     if (!showCompletionDialog) return;
     
-    setTasks(prev => prev.map(task => 
-      task.id === showCompletionDialog ? { 
-        ...task, 
-        completed: true, 
-        completedAt: new Date().toISOString(),
+    try {
+      const completionDataToSend = {
         timeSpent: completionData.timeSpent ? parseInt(completionData.timeSpent) : undefined,
         difficulty: completionData.difficulty,
         notes: completionData.notes || undefined
-      } : task
-    ));
-    
-    setShowCompletionDialog(null);
-    setCompletionData({ timeSpent: '', difficulty: 'medium', notes: '' });
+      };
+
+      await apiService.completeTask(showCompletionDialog, completionDataToSend);
+      
+      setTasks(prev => prev.map(task => 
+        task._id === showCompletionDialog ? { 
+          ...task, 
+          completed: true, 
+          completedAt: new Date().toISOString(),
+          timeSpent: completionDataToSend.timeSpent,
+          difficulty: completionDataToSend.difficulty,
+          notes: completionDataToSend.notes
+        } : task
+      ));
+      
+      setShowCompletionDialog(null);
+      setCompletionData({ timeSpent: '', difficulty: 'medium', notes: '' });
+    } catch (error) {
+      console.error('Error completing task:', error);
+    }
   };
 
   const getDaysUntilDeadline = (deadline: string) => {
@@ -323,6 +324,17 @@ export const Planner = ({ userEmail }: PlannerProps) => {
   }).length;
   const onTimeRate = completedTasks.length > 0 ? (onTimeCompletions / completedTasks.length) * 100 : 0;
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading your tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Notification Settings */}
@@ -330,51 +342,51 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                 <div className="relative">
-                   <Bell className="h-5 w-5 text-blue-600" />
-                   {notificationSettings.enabled && (
-                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                   )}
-                 </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Bell className="h-5 w-5 text-blue-600" />
+                  {notificationSettings.enabled && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  )}
+                </div>
                 <div>
                   <p className="font-semibold text-blue-800">Email Notifications</p>
-                                     <p className="text-sm text-blue-600">
-                     Automatic email reminders {notificationSettings.reminderTime} minutes before deadlines
-                   </p>
-                                                        <p className="text-xs text-blue-500">
-                      Notifications will be sent to: {userEmail}
-                    </p>
+                  <p className="text-sm text-blue-600">
+                    Automatic email reminders {notificationSettings.reminderTime} minutes before deadlines
+                  </p>
+                  <p className="text-xs text-blue-500">
+                    Notifications will be sent to: {userEmail}
+                  </p>
                 </div>
               </div>
-                             <div className="flex items-center gap-2">
-                                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={requestNotificationPermission}
-                    className="text-blue-700 border-blue-300"
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    Enable Browser Notifications
-                  </Button>
-                 <Select 
-                   value={notificationSettings.reminderTime.toString()} 
-                   onValueChange={(value) => setNotificationSettings(prev => ({ 
-                     ...prev, 
-                     reminderTime: parseInt(value) 
-                   }))}
-                 >
-                   <SelectTrigger className="w-32">
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="30">30 min</SelectItem>
-                     <SelectItem value="60">1 hour</SelectItem>
-                     <SelectItem value="120">2 hours</SelectItem>
-                     <SelectItem value="1440">1 day</SelectItem>
-                   </SelectContent>
-                 </Select>
-               </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestNotificationPermission}
+                  className="text-blue-700 border-blue-300"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Enable Browser Notifications
+                </Button>
+                <Select 
+                  value={notificationSettings.reminderTime.toString()} 
+                  onValueChange={(value) => setNotificationSettings(prev => ({ 
+                    ...prev, 
+                    reminderTime: parseInt(value) 
+                  }))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                    <SelectItem value="1440">1 day</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -542,11 +554,11 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         ) : (
           filteredTasks.map(task => (
             <TaskCard
-              key={task.id}
+              key={task._id}
               task={task}
               onEdit={() => setEditingTask(task)}
-              onDelete={() => deleteTask(task.id)}
-              onToggleComplete={() => toggleTaskCompletion(task.id)}
+              onDelete={() => deleteTask(task._id)}
+              onToggleComplete={() => toggleTaskCompletion(task._id)}
               getDaysUntilDeadline={getDaysUntilDeadline}
               getPriorityColor={getPriorityColor}
               getCategoryIcon={getCategoryIcon}
@@ -555,89 +567,89 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         )}
       </div>
 
-             {/* Edit Task Dialog */}
-       {editingTask && (
-         <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
-           <DialogContent className="sm:max-w-[425px]">
-             <DialogHeader>
-               <DialogTitle>Edit Task</DialogTitle>
-               <DialogDescription>
-                 Update your task details
-               </DialogDescription>
-             </DialogHeader>
-             <TaskForm 
-               task={editingTask} 
-               onSubmit={(taskData) => updateTask(editingTask.id, taskData)}
-             />
-           </DialogContent>
-         </Dialog>
-       )}
+      {/* Edit Task Dialog */}
+      {editingTask && (
+        <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+              <DialogDescription>
+                Update your task details
+              </DialogDescription>
+            </DialogHeader>
+            <TaskForm 
+              task={editingTask} 
+              onSubmit={(taskData) => updateTask(editingTask._id, taskData)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
-       {/* Task Completion Dialog */}
-       {showCompletionDialog && (
-         <Dialog open={!!showCompletionDialog} onOpenChange={() => setShowCompletionDialog(null)}>
-           <DialogContent className="sm:max-w-[425px]">
-             <DialogHeader>
-               <DialogTitle>Mark Task as Completed</DialogTitle>
-               <DialogDescription>
-                 Add completion details to track your progress
-               </DialogDescription>
-             </DialogHeader>
-             <div className="space-y-4">
-               <div className="space-y-2">
-                 <Label htmlFor="timeSpent">Time Spent (minutes)</Label>
-                 <Input
-                   id="timeSpent"
-                   type="number"
-                   placeholder="e.g., 45"
-                   value={completionData.timeSpent}
-                   onChange={(e) => setCompletionData({ ...completionData, timeSpent: e.target.value })}
-                 />
-               </div>
-               
-               <div className="space-y-2">
-                 <Label htmlFor="difficulty">Difficulty Level</Label>
-                 <Select value={completionData.difficulty} onValueChange={(value: any) => setCompletionData({ ...completionData, difficulty: value })}>
-                   <SelectTrigger>
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="easy">Easy</SelectItem>
-                     <SelectItem value="medium">Medium</SelectItem>
-                     <SelectItem value="hard">Hard</SelectItem>
-                   </SelectContent>
-                 </Select>
-               </div>
-               
-               <div className="space-y-2">
-                 <Label htmlFor="notes">Completion Notes</Label>
-                 <Textarea
-                   id="notes"
-                   placeholder="Any notes about the task completion..."
-                   value={completionData.notes}
-                   onChange={(e) => setCompletionData({ ...completionData, notes: e.target.value })}
-                   rows={3}
-                 />
-               </div>
-             </div>
-             <DialogFooter>
-               <Button variant="outline" onClick={() => setShowCompletionDialog(null)}>
-                 Cancel
-               </Button>
-               <Button onClick={handleTaskCompletion} className="bg-green-600 hover:bg-green-700">
-                 Mark as Completed
-               </Button>
-             </DialogFooter>
-           </DialogContent>
-         </Dialog>
-       )}
-     </div>
-   );
- };
+      {/* Task Completion Dialog */}
+      {showCompletionDialog && (
+        <Dialog open={!!showCompletionDialog} onOpenChange={() => setShowCompletionDialog(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Mark Task as Completed</DialogTitle>
+              <DialogDescription>
+                Add completion details to track your progress
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="timeSpent">Time Spent (minutes)</Label>
+                <Input
+                  id="timeSpent"
+                  type="number"
+                  placeholder="e.g., 45"
+                  value={completionData.timeSpent}
+                  onChange={(e) => setCompletionData({ ...completionData, timeSpent: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="difficulty">Difficulty Level</Label>
+                <Select value={completionData.difficulty} onValueChange={(value: any) => setCompletionData({ ...completionData, difficulty: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="easy">Easy</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="notes">Completion Notes</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any notes about the task completion..."
+                  value={completionData.notes}
+                  onChange={(e) => setCompletionData({ ...completionData, notes: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCompletionDialog(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleTaskCompletion} className="bg-green-600 hover:bg-green-700">
+                Mark as Completed
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+};
 
 interface TaskFormProps {
   task?: Task;
-  onSubmit: (taskData: Omit<Task, 'id' | 'createdAt'>) => void;
+  onSubmit: (taskData: Omit<Task, '_id' | 'createdAt' | 'completed' | 'notificationSent'>) => void;
 }
 
 const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
@@ -646,14 +658,13 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
     description: task?.description || '',
     category: task?.category || 'study',
     priority: task?.priority || 'medium',
-    deadline: task?.deadline || '',
+    deadline: task?.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      completed: task?.completed || false,
     });
   };
 

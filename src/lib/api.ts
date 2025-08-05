@@ -222,6 +222,95 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async resetProgress(): Promise<any> {
+    return this.request<any>('/progress/reset', {
+      method: 'DELETE',
+    });
+  }
+
+  async getTodaysProblem(): Promise<any> {
+    return this.request<any>('/progress/todays-problem');
+  }
+
+  async solveTodaysProblem(data: { problemId: string; solution?: string; language?: string; timeSpent?: number; notes?: string }): Promise<any> {
+    return this.request<any>('/progress/todays-problem/solve', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getProblemSubmissions(problemId: string): Promise<any> {
+    return this.request<any>(`/progress/problem-submissions/${problemId}`);
+  }
+
+  async sendEmailNotification(data: { to: string; subject: string; body: string }): Promise<any> {
+    console.log('📤 API: sendEmailNotification called with data:', data);
+    console.log('📧 Email will be sent TO:', data.to);
+    
+    const result = await this.request<any>('/send-email', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    
+    console.log('📬 API: Email notification result:', result);
+    return result;
+  }
+
+  // Task-related API methods
+  async getTasks(): Promise<any[]> {
+    return await this.request<any[]>('/tasks');
+  }
+
+  async createTask(taskData: {
+    title: string;
+    description?: string;
+    category: 'study' | 'practice' | 'interview' | 'review' | 'other';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    deadline: string;
+    tags?: string[];
+  }): Promise<any> {
+    return await this.request<any>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  async updateTask(taskId: string, updates: any): Promise<any> {
+    return await this.request<any>(`/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteTask(taskId: string): Promise<any> {
+    return await this.request<any>(`/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async completeTask(taskId: string, completionData: {
+    timeSpent?: number;
+    difficulty?: 'easy' | 'medium' | 'hard';
+    notes?: string;
+  }): Promise<any> {
+    return await this.request<any>(`/tasks/${taskId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(completionData),
+    });
+  }
+
+  async incompleteTask(taskId: string): Promise<any> {
+    return await this.request<any>(`/tasks/${taskId}/incomplete`, {
+      method: 'PATCH',
+    });
+  }
+
+  async markNotificationSent(taskId: string): Promise<any> {
+    return await this.request<any>(`/tasks/${taskId}/notification-sent`, {
+      method: 'PATCH',
+    });
+  }
 }
 
 export const apiService = new ApiService(); 

@@ -15,6 +15,14 @@ const progressSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  todaysProblemStreak: {
+    type: Number,
+    default: 0
+  },
+  longestTodaysProblemStreak: {
+    type: Number,
+    default: 0
+  },
   lastActivityDate: {
     type: Date,
     default: Date.now
@@ -88,6 +96,26 @@ const progressSchema = new mongoose.Schema({
     default: 16
   },
   
+  // Today's problem rotation
+  todaysProblemDay: {
+    type: Number,
+    default: 1
+  },
+  todaysProblemBuffer: [{
+    problemId: String,
+    day: Number
+  }],
+  
+  // Today's problem bank (20 specific problems)
+  todaysProblemBank: [{
+    problemId: String,
+    title: String,
+    difficulty: String,
+    topics: [String],
+    problemUrl: String,
+    day: Number
+  }],
+  
   // Achievements and badges
   achievements: [{
     name: String,
@@ -129,18 +157,24 @@ progressSchema.pre('save', function(next) {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays === 1) {
-      // Consecutive day
+      // Consecutive day - streak continues
       this.currentStreak += 1;
     } else if (diffDays > 1) {
-      // Streak broken
+      // Streak broken - reset to 1 for today
       this.currentStreak = 1;
     }
+    // If diffDays === 0, it's the same day, don't change streak
     
     this.lastActivityDate = today;
     
     // Update longest streak
     if (this.currentStreak > this.longestStreak) {
       this.longestStreak = this.currentStreak;
+    }
+  } else {
+    // Same day - if this is the first problem solved today, start streak at 1
+    if (this.currentStreak === 0) {
+      this.currentStreak = 1;
     }
   }
   

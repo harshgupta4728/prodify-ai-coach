@@ -44,6 +44,7 @@ const generateToken = (userId) => {
 // Signup
 router.post('/signup', async (req, res) => {
   try {
+    console.log('Signup request received:', req.body);
     const { name, email, password, leetcodeProfile, geeksforgeeksProfile } = req.body;
 
     // Validate required fields
@@ -98,6 +99,9 @@ router.post('/signup', async (req, res) => {
 
   } catch (error) {
     console.error('Signup error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     
     // Handle specific MongoDB errors
     if (error.name === 'ValidationError') {
@@ -113,7 +117,8 @@ router.post('/signup', async (req, res) => {
     }
 
     res.status(500).json({ 
-      error: 'Server error during signup. Please try again.' 
+      error: 'Server error during signup. Please try again.',
+      details: error.message 
     });
   }
 });
@@ -121,6 +126,7 @@ router.post('/signup', async (req, res) => {
 // Signin
 router.post('/signin', async (req, res) => {
   try {
+    console.log('Signin request received:', req.body);
     const { email, password } = req.body;
 
     // Validate required fields
@@ -161,8 +167,12 @@ router.post('/signin', async (req, res) => {
 
   } catch (error) {
     console.error('Signin error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     res.status(500).json({ 
-      error: 'Server error during signin. Please try again.' 
+      error: 'Server error during signin. Please try again.',
+      details: error.message 
     });
   }
 });
