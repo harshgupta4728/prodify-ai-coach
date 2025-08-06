@@ -178,7 +178,7 @@ router.post('/signin', async (req, res) => {
 });
 
 // Get current user
-router.get('/me', auth, async (req, res) => {
+router.get('/auth/me', auth, async (req, res) => {
   try {
     res.json({
       user: req.user.toJSON()
