@@ -120,7 +120,7 @@ class ApiService {
   }
 
   async updateProfile(data: Partial<User>): Promise<{ message: string; user: User }> {
-    return this.request<{ message: string; user: User }>('api/auth/profile', {
+    return this.request<{ message: string; user: User }>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
