@@ -69,8 +69,9 @@ class ApiService {
       ...options.headers,
     };
 
-    if (this.getToken()) {
-      headers.Authorization = `Bearer ${this.getToken()}`;
+    const token = this.getToken(); 
+    if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
@@ -119,7 +120,7 @@ class ApiService {
   }
 
   async updateProfile(data: Partial<User>): Promise<{ message: string; user: User }> {
-    return this.request<{ message: string; user: User }>('/auth/profile', {
+    return this.request<{ message: string; user: User }>('api/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -164,7 +165,7 @@ class ApiService {
 
   async deleteAccount(): Promise<{ message: string }> {
     try {
-      return await this.request<{ message: string }>('/auth/account', {
+      return await this.request<{ message: string }>('auth/account', {
         method: 'DELETE',
       });
     } catch (error) {
