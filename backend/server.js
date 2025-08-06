@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: 'https://prodify-ai-coach-frontend.onrender.com/',
+  origin: 'https://prodify-ai-coach-frontend.onrender.com',
   credentials: true
 }));
 app.use(express.json());
