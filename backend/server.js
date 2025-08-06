@@ -6,7 +6,7 @@ const nodemailer = require('nodemailer');
 
 // Set default JWT_SECRET if not provided
 if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'your-super-secret-jwt-key-change-this-in-production';
+  process.env.JWT_SECRET = '7330048cc03ef1ed6e501a74eb93728ea08c33bab53e0ac5cfdb1d1f2667d2d3';
   console.log('Warning: Using default JWT_SECRET. Please set JWT_SECRET in your .env file for production.');
 }
 
