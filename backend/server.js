@@ -1,6 +1,4 @@
 require('dotenv').config();
-console.log("✅ MONGODB_URI:", process.env.MONGODB_URI);
-
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -8,7 +6,7 @@ const nodemailer = require('nodemailer');
 
 // Set default JWT_SECRET if not provided
 if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = '7330048cc03ef1ed6e501a74eb93728ea08c33bab53e0ac5cfdb1d1f2667d2d3';
+  process.env.JWT_SECRET = 'your-super-secret-jwt-key-change-this-in-production';
   console.log('Warning: Using default JWT_SECRET. Please set JWT_SECRET in your .env file for production.');
 }
 
@@ -18,10 +16,13 @@ const taskRoutes = require('./routes/tasks');
 const progressRoutes = require('./routes/progress');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://prodify-ai-coach-frontend.onrender.com/',
+  credentials: true
+}));
 app.use(express.json());
 
 // Serve static files from uploads directory
@@ -30,7 +31,7 @@ app.use('/uploads', express.static('uploads'));
 // Connect to MongoDB
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:HgTg4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify', {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:harshgupta4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -120,10 +121,6 @@ app.post('/api/test', (req, res) => {
     body: req.body
   });
 });
-app.get('/', (req, res) => {
-  res.send('Prodify AI Coach backend is running!');
-});
-
 
 // Start server
 app.listen(PORT, () => {
