@@ -11,7 +11,12 @@ const router = express.Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+    // Ensure uploads directory exists
+    const uploadDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -35,6 +40,25 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024 // 5MB limit
   }
 });
+
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ error: 'Unexpected file field.' });
+    }
+    return res.status(400).json({ error: 'File upload error: ' + err.message });
+  }
+  if (err) {
+    console.error('Upload error:', err);
+    return res.status(400).json({ error: err.message });
+  }
+  next();
+};
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -271,32 +295,55 @@ router.delete('/account', auth, async (req, res) => {
 });
 
 // Upload profile picture
-router.post('/profile-picture', auth, upload.single('profilePicture'), async (req, res) => {
+router.post('/profile-picture', auth, upload.single('profilePicture'), handleMulterError, async (req, res) => {
   try {
+    console.log('Profile picture upload initiated for user:', req.user._id);
+    console.log('Request file:', req.file);
+
     if (!req.file) {
+      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
     const user = await User.findById(req.user._id);
     if (!user) {
+      console.log('User not found:', req.user._id);
       return res.status(404).json({ error: 'User not found.' });
     }
 
+    console.log('User found:', user._id);
+    console.log('Uploaded file info:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path
+    });
+
     // Delete old profile picture if it exists
     if (user.profilePicture) {
-      // Extract filename from the stored path
-      const filename = user.profilePicture.split('/').pop();
-      if (filename) {
-        const oldPicturePath = path.join(__dirname, '..', 'uploads', filename);
-        if (fs.existsSync(oldPicturePath)) {
-          fs.unlinkSync(oldPicturePath);
+      console.log('Deleting old profile picture:', user.profilePicture);
+      try {
+        // Extract filename from the stored path
+        const filename = user.profilePicture.split('/').pop();
+        if (filename) {
+          const oldPicturePath = path.join(__dirname, '..', 'uploads', filename);
+          if (fs.existsSync(oldPicturePath)) {
+            fs.unlinkSync(oldPicturePath);
+            console.log('Old profile picture deleted successfully');
+          }
         }
+      } catch (deleteError) {
+        console.log('Error deleting old profile picture (non-critical):', deleteError.message);
       }
     }
 
     // Update user's profile picture
     user.profilePicture = `/uploads/${req.file.filename}`;
+    console.log('Saving user with new profile picture path:', user.profilePicture);
+    
     await user.save();
+    console.log('User saved successfully');
 
     res.json({
       message: 'Profile picture uploaded successfully',
@@ -306,16 +353,25 @@ router.post('/profile-picture', auth, upload.single('profilePicture'), async (re
 
   } catch (error) {
     console.error('Profile picture upload error:', error);
+    console.error('Error stack:', error.stack);
     
     // Delete uploaded file if there was an error
     if (req.file) {
-      const filePath = path.join(__dirname, '..', req.file.path);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      try {
+        const filePath = req.file.path;
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('Cleaned up uploaded file after error');
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up file:', cleanupError.message);
       }
     }
     
-    res.status(500).json({ error: 'Server error during profile picture upload.' });
+    res.status(500).json({ 
+      error: 'Server error during profile picture upload.',
+      details: error.message 
+    });
   }
 });
 
