@@ -106,7 +106,7 @@ export const SettingsSection = ({ userData, onLogout }: SettingsSectionProps) =>
     
     toast({
       title: "Notification settings updated",
-      description: `${key.replace(/([A-Z])/g, ' $1').toLowerCase()} ${!notifications[key] ? 'enabled' : 'disabled'}`,
+      description: `${key['replace'](/([A-Z])/g, ' $1').toLowerCase()} ${!notifications[key] ? 'enabled' : 'disabled'}`,
     });
   };
 

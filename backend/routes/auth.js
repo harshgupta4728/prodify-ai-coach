@@ -244,7 +244,7 @@ router.put('/profile', auth, async (req, res) => {
 });
 
 // Delete account
-router.delete('/account', auth, async (req, res) => {
+router.delete('/auth/account', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) {
