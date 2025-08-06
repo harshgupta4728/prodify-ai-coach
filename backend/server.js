@@ -103,6 +103,7 @@ app.post('/api/send-email', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   
   res.json({ 
