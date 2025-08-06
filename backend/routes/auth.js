@@ -178,7 +178,7 @@ router.post('/signin', async (req, res) => {
 });
 
 // Get current user
-router.get('/auth/me', auth, async (req, res) => {
+router.get('/me', auth, async (req, res) => {
   try {
     res.json({
       user: req.user.toJSON()
@@ -190,7 +190,7 @@ router.get('/auth/me', auth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/auth/profile', auth, async (req, res) => {
+router.put('/profile', auth, async (req, res) => {
   try {
     const { 
       name, 
@@ -244,7 +244,7 @@ router.put('/auth/profile', auth, async (req, res) => {
 });
 
 // Delete account
-router.delete('/auth/account', auth, async (req, res) => {
+router.delete('/account', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -271,7 +271,7 @@ router.delete('/auth/account', auth, async (req, res) => {
 });
 
 // Upload profile picture
-router.post('/auth/profile-picture', auth, upload.single('profilePicture'), async (req, res) => {
+router.post('/profile-picture', auth, upload.single('profilePicture'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded.' });
@@ -320,7 +320,7 @@ router.post('/auth/profile-picture', auth, upload.single('profilePicture'), asyn
 });
 
 // Remove profile picture
-router.delete('/auth/profile-picture', auth, async (req, res) => {
+router.delete('/profile-picture', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) {

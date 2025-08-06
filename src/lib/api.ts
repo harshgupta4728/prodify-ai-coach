@@ -165,7 +165,7 @@ class ApiService {
 
   async deleteAccount(): Promise<{ message: string }> {
     try {
-      return await this.request<{ message: string }>('auth/account', {
+      return await this.request<{ message: string }>('/auth/account', {
         method: 'DELETE',
       });
     } catch (error) {
