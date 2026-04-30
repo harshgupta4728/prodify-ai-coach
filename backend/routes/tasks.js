@@ -24,7 +24,10 @@ router.post('/', auth, async (req, res) => {
       category,
       priority,
       deadline,
-      tags
+      tags,
+      estimatedTime,
+      subtasks,
+      link
     } = req.body;
 
     const task = new Task({
@@ -34,7 +37,10 @@ router.post('/', auth, async (req, res) => {
       category,
       priority,
       deadline: new Date(deadline),
-      tags: tags || []
+      tags: tags || [],
+      estimatedTime: estimatedTime || 0,
+      subtasks: subtasks || [],
+      link: link || ''
     });
 
     await task.save();
@@ -57,6 +63,15 @@ router.put('/:id', auth, async (req, res) => {
     const updates = req.body;
     if (updates.deadline) {
       updates.deadline = new Date(updates.deadline);
+    }
+
+    // Sync status and completed fields
+    if (updates.status === 'done' && !task.completed) {
+      updates.completed = true;
+      updates.completedAt = new Date();
+    } else if (updates.status && updates.status !== 'done' && task.completed) {
+      updates.completed = false;
+      updates.completedAt = undefined;
     }
 
     Object.assign(task, updates);
@@ -97,6 +112,7 @@ router.patch('/:id/complete', auth, async (req, res) => {
     }
 
     task.completed = true;
+    task.status = 'done';
     task.completedAt = new Date();
     if (timeSpent) task.timeSpent = timeSpent;
     if (difficulty) task.difficulty = difficulty;
@@ -120,6 +136,7 @@ router.patch('/:id/incomplete', auth, async (req, res) => {
     }
 
     task.completed = false;
+    task.status = 'todo';
     task.completedAt = undefined;
     task.timeSpent = 0;
     task.difficulty = 'medium';

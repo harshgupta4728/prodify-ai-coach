@@ -12,8 +12,6 @@ export interface User {
   graduationYear?: string;
   location?: string;
   portfolio?: string;
-  leetcodeProfile?: string;
-  geeksforgeeksProfile?: string;
   profilePicture?: string;
   createdAt: string;
   lastLogin: string;
@@ -34,8 +32,17 @@ export interface SignupData {
   name: string;
   email: string;
   password: string;
-  leetcodeProfile?: string;
-  geeksforgeeksProfile?: string;
+  otp: string;
+}
+
+export interface SendOtpData {
+  email: string;
+  purpose: 'signup' | 'signin';
+}
+
+export interface OtpLoginData {
+  email: string;
+  otp: string;
 }
 
 class ApiService {
@@ -99,8 +106,14 @@ class ApiService {
   }
 
   // Authentication methods
+  async sendOtp(data: SendOtpData): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/send-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async signup(data: SignupData): Promise<AuthResponse> {
-    console.log('Signup data:', data);
     return this.request<AuthResponse>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -108,8 +121,14 @@ class ApiService {
   }
 
   async signin(data: LoginData): Promise<AuthResponse> {
-    console.log('Signin data:', data);
     return this.request<AuthResponse>('/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async signinWithOtp(data: OtpLoginData): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/signin-otp', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -269,6 +288,9 @@ class ApiService {
     category: 'study' | 'practice' | 'interview' | 'review' | 'other';
     priority: 'low' | 'medium' | 'high' | 'urgent';
     deadline: string;
+    estimatedTime?: number;
+    subtasks?: { text: string; done: boolean }[];
+    link?: string;
     tags?: string[];
   }): Promise<any> {
     return await this.request<any>('/tasks', {
@@ -311,6 +333,74 @@ class ApiService {
     return await this.request<any>(`/tasks/${taskId}/notification-sent`, {
       method: 'PATCH',
     });
+  }
+
+  // ============ Topics / Content ============
+
+  async getTopics(): Promise<any[]> {
+    return await this.request<any[]>('/topics');
+  }
+
+  async getTopic(slug: string): Promise<any> {
+    return await this.request<any>(`/topics/${slug}`);
+  }
+
+  async createTopic(data: any): Promise<any> {
+    return await this.request<any>('/topics', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateTopic(id: string, data: any): Promise<any> {
+    return await this.request<any>(`/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteTopic(id: string): Promise<any> {
+    return await this.request<any>(`/topics/${id}`, { method: 'DELETE' });
+  }
+
+  async getMCQs(topicSlug: string): Promise<any[]> {
+    return await this.request<any[]>(`/topics/${topicSlug}/mcqs`);
+  }
+
+  async createMCQ(topicSlug: string, data: any): Promise<any> {
+    return await this.request<any>(`/topics/${topicSlug}/mcqs`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateMCQ(id: string, data: any): Promise<any> {
+    return await this.request<any>(`/topics/mcqs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteMCQ(id: string): Promise<any> {
+    return await this.request<any>(`/topics/mcqs/${id}`, { method: 'DELETE' });
+  }
+
+  async getInterviewQuestions(topicSlug: string): Promise<any[]> {
+    return await this.request<any[]>(`/topics/${topicSlug}/interview-questions`);
+  }
+
+  async createInterviewQuestion(topicSlug: string, data: any): Promise<any> {
+    return await this.request<any>(`/topics/${topicSlug}/interview-questions`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateInterviewQuestion(id: string, data: any): Promise<any> {
+    return await this.request<any>(`/topics/interview-questions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteInterviewQuestion(id: string): Promise<any> {
+    return await this.request<any>(`/topics/interview-questions/${id}`, { method: 'DELETE' });
+  }
+
+  // ============ Progress Tracking (Quiz / Articles / Interview) ============
+
+  async saveQuizScore(data: { topicSlug: string; score: number; totalQuestions: number }): Promise<any> {
+    return await this.request<any>('/progress/quiz-score', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async markArticleRead(data: { topicSlug: string; subtopicId: string }): Promise<any> {
+    return await this.request<any>('/progress/article-read', { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async markInterviewViewed(data: { topicSlug: string; count: number }): Promise<any> {
+    return await this.request<any>('/progress/interview-viewed', { method: 'PATCH', body: JSON.stringify(data) });
   }
 }
 

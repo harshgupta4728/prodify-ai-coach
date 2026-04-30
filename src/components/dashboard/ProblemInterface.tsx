@@ -409,7 +409,7 @@ def solve():
             </h1>
             <div className="flex items-center gap-2 mt-1">
               {topic === 'todays-problem' && (
-                <Badge className="bg-orange-100 text-orange-800">
+                <Badge className="bg-primary/10 text-primary">
                   Problem of the Day
                 </Badge>
               )}
@@ -429,7 +429,7 @@ def solve():
           {topic === 'todays-problem' && streak && (
             <div className="text-center">
               <div className="text-sm text-muted-foreground">Current Streak</div>
-              <div className="font-bold text-lg text-orange-600">{streak.todaysProblemStreak} days</div>
+              <div className="font-bold text-lg text-primary">{streak.todaysProblemStreak} days</div>
             </div>
           )}
           <div className="text-center">
@@ -441,17 +441,17 @@ def solve():
             onClick={() => window.open(problem.problemUrl, '_blank')}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
-            View on LeetCode
+            View Problem
           </Button>
         </div>
       </div>
 
       {/* Today's Problem Motivation */}
       {topic === 'todays-problem' && (
-        <div className="p-4 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg">
+        <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
           <div className="text-center">
-            <h3 className="font-semibold text-orange-800 mb-2">🔥 Keep Your Streak Alive!</h3>
-            <p className="text-sm text-orange-700">
+            <h3 className="font-semibold text-primary mb-2">🔥 Keep Your Streak Alive!</h3>
+            <p className="text-sm text-primary/80">
               {streak?.todaysProblemStreak > 0 
                 ? `You're on a ${streak.todaysProblemStreak}-day streak! Solve today's problem to keep it going.`
                 : "Start your daily problem-solving journey today!"

@@ -30,6 +30,11 @@ const taskSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  status: {
+    type: String,
+    enum: ['todo', 'in_progress', 'done'],
+    default: 'todo'
+  },
   completed: {
     type: Boolean,
     default: false
@@ -45,6 +50,19 @@ const taskSchema = new mongoose.Schema({
     type: String,
     enum: ['easy', 'medium', 'hard'],
     default: 'medium'
+  },
+  estimatedTime: {
+    type: Number, // in minutes
+    default: 0
+  },
+  subtasks: [{
+    text: { type: String, trim: true },
+    done: { type: Boolean, default: false }
+  }],
+  link: {
+    type: String,
+    trim: true,
+    default: ''
   },
   tags: [{
     type: String,

@@ -50,17 +50,6 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
-  // Coding profiles
-  leetcodeProfile: {
-    type: String,
-    trim: true,
-    default: ''
-  },
-  geeksforgeeksProfile: {
-    type: String,
-    trim: true,
-    default: ''
-  },
   // Profile picture
   profilePicture: {
     type: String,

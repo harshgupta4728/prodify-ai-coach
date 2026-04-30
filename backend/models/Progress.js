@@ -124,6 +124,32 @@ const progressSchema = new mongoose.Schema({
     icon: String
   }],
   
+  // Quiz scores per topic { topicSlug: { bestScore, totalQuestions, attempts, lastAttempt } }
+  quizScores: {
+    type: Map,
+    of: new mongoose.Schema({
+      bestScore: { type: Number, default: 0 },
+      totalQuestions: { type: Number, default: 0 },
+      attempts: { type: Number, default: 0 },
+      lastAttempt: { type: Date }
+    }, { _id: false }),
+    default: {}
+  },
+
+  // Articles/subtopics read
+  articlesRead: [{
+    topicSlug: { type: String },
+    subtopicId: { type: String },
+    readAt: { type: Date, default: Date.now }
+  }],
+
+  // Interview questions viewed count per topic
+  interviewQuestionsViewed: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
+
   // Daily goals
   dailyGoal: {
     type: Number,

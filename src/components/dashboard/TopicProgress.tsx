@@ -1,161 +1,139 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Play, ExternalLink, CheckCircle2, Circle, Target, Clock, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  BookOpen, Trophy, Search, ChevronRight,
+  Clock, FileText, HelpCircle, MessageSquare, Code
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { apiService } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
 
 interface TopicProgressProps {
   onNavigateToSection?: (section: string) => void;
 }
 
-const topics = [
-  { id: 'arrays', name: 'Arrays', color: 'bg-blue-500' },
-  { id: 'strings', name: 'Strings', color: 'bg-green-500' },
-  { id: 'linkedLists', name: 'Linked Lists', color: 'bg-purple-500' },
-  { id: 'trees', name: 'Trees', color: 'bg-orange-500' },
-  { id: 'graphs', name: 'Graphs', color: 'bg-red-500' },
-  { id: 'dynamicProgramming', name: 'Dynamic Programming', color: 'bg-indigo-500' },
-  { id: 'greedy', name: 'Greedy', color: 'bg-pink-500' },
-  { id: 'backtracking', name: 'Backtracking', color: 'bg-yellow-500' },
-  { id: 'binarySearch', name: 'Binary Search', color: 'bg-teal-500' },
-  { id: 'twoPointers', name: 'Two Pointers', color: 'bg-cyan-500' },
-  { id: 'slidingWindow', name: 'Sliding Window', color: 'bg-emerald-500' },
-  { id: 'stack', name: 'Stack', color: 'bg-violet-500' }
-];
+interface TopicWithCounts {
+  _id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  color: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedHours: number;
+  description: string;
+  subtopics: any[];
+  mcqCount: number;
+  interviewQuestionCount: number;
+  order: number;
+}
+
+const DIFFICULTY_COLORS = {
+  beginner: 'bg-green-100 text-green-700 border-green-200',
+  intermediate: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  advanced: 'bg-red-100 text-red-700 border-red-200',
+};
+
+const TOPIC_COLORS: Record<string, { bg: string; text: string; light: string }> = {
+  blue: { bg: 'bg-blue-500', text: 'text-blue-600', light: 'bg-blue-50' },
+  green: { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-50' },
+  purple: { bg: 'bg-purple-500', text: 'text-purple-600', light: 'bg-purple-50' },
+  violet: { bg: 'bg-violet-500', text: 'text-violet-600', light: 'bg-violet-50' },
+  amber: { bg: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
+  red: { bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-50' },
+  indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', light: 'bg-indigo-50' },
+  teal: { bg: 'bg-teal-500', text: 'text-teal-600', light: 'bg-teal-50' },
+  pink: { bg: 'bg-pink-500', text: 'text-pink-600', light: 'bg-pink-50' },
+  yellow: { bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-50' },
+  cyan: { bg: 'bg-cyan-500', text: 'text-cyan-600', light: 'bg-cyan-50' },
+  emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', light: 'bg-emerald-50' },
+  orange: { bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
+  rose: { bg: 'bg-rose-500', text: 'text-rose-600', light: 'bg-rose-50' },
+  slate: { bg: 'bg-slate-500', text: 'text-slate-600', light: 'bg-slate-50' },
+};
+
+const getColor = (color: string) => TOPIC_COLORS[color] || TOPIC_COLORS.blue;
 
 export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
-  const { toast } = useToast();
+  const [topics, setTopics] = useState<TopicWithCounts[]>([]);
   const [progress, setProgress] = useState<any>(null);
-  const [topicProblems, setTopicProblems] = useState<{[key: string]: any[]}>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
 
   useEffect(() => {
-    loadProgress();
+    loadData();
   }, []);
 
-  // Refresh progress every 30 seconds to show real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadProgress();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadProgress = async () => {
+  const loadData = async () => {
     try {
-      setIsLoading(true);
-      
-      // Load user progress
-      const progressData = await apiService.getProgress();
-      setProgress(progressData.progress);
-      
-      // Load problems for each topic
-      const topicProblemsData: {[key: string]: any[]} = {};
-      
-      for (const topic of topics) {
-        try {
-          // Get problems for this topic
-          const problemsData = await apiService.getProblemsByTopic(topic.id);
-          topicProblemsData[topic.id] = problemsData.problems || [];
-        } catch (error) {
-          console.error(`Error loading data for topic ${topic.id}:`, error);
-          topicProblemsData[topic.id] = [];
-        }
-      }
-      
-      setTopicProblems(topicProblemsData);
-      
+      setLoading(true);
+      const [topicsData, progressData] = await Promise.all([
+        apiService.getTopics(),
+        apiService.getProgress()
+      ]);
+      setTopics(topicsData);
+      setProgress(progressData.progress || progressData);
     } catch (error) {
-      console.error('Error loading progress:', error);
-      toast({
-        title: "Error loading progress",
-        description: "Failed to load your topic progress. Please refresh the page.",
-        variant: "destructive",
-      });
+      console.error('Error loading topic data:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleStartTopic = (topicId: string) => {
-    // Navigate to the problem interface with the selected topic
-    if (onNavigateToSection) {
-      onNavigateToSection('problem-interface');
-    }
-    // You can also store the selected topic in localStorage or context
-    localStorage.setItem('selectedTopic', topicId);
+  const getTopicProgress = (topic: TopicWithCounts) => {
+    if (!progress) return { theory: 0, practice: 0, quiz: 0, interview: 0, overall: 0 };
+
+    const subtopicCount = topic.subtopics?.length || 1;
+    const articlesRead = progress.articlesRead?.filter((a: any) => a.topicSlug === topic.slug).length || 0;
+    const theory = Math.min((articlesRead / subtopicCount) * 100, 100);
+
+    const problemsSolved = progress.topicProgress?.[topic.slug] || 0;
+    const practice = Math.min(problemsSolved * 20, 100);
+
+    const quizData = progress.quizScores?.[topic.slug];
+    const quiz = quizData ? Math.min((quizData.bestScore / (quizData.totalQuestions || topic.mcqCount || 1)) * 100, 100) : 0;
+
+    const interviewViewed = progress.interviewQuestionsViewed?.[topic.slug] || 0;
+    const interview = topic.interviewQuestionCount > 0
+      ? Math.min((interviewViewed / topic.interviewQuestionCount) * 100, 100)
+      : 0;
+
+    const overall = (theory + practice + quiz + interview) / 4;
+    return { theory, practice, quiz, interview, overall };
   };
 
-  const getTopicProgress = (topicId: string) => {
-    if (!progress?.topicProgress) return 0;
-    return progress.topicProgress[topicId] || 0;
+  const filteredTopics = topics.filter(topic => {
+    const matchesSearch = !searchQuery ||
+      topic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      topic.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDifficulty = difficultyFilter === 'all' || topic.difficulty === difficultyFilter;
+    return matchesSearch && matchesDifficulty;
+  });
+
+  const totalTopics = topics.length;
+  const topicsMastered = topics.filter(t => getTopicProgress(t).overall >= 80).length;
+  const totalProblemsSolved = progress?.totalProblemsSolved || 0;
+  const avgQuizScore = (() => {
+    if (!progress?.quizScores) return 0;
+    const scores = Object.values(progress.quizScores) as any[];
+    if (scores.length === 0) return 0;
+    return Math.round(scores.reduce((sum: number, s: any) => sum + (s.bestScore / (s.totalQuestions || 1)) * 100, 0) / scores.length);
+  })();
+  const currentRating = progress?.currentRating || 1200;
+
+  const navigateToTopic = (slug: string) => {
+    onNavigateToSection?.(`topic-detail&topicId=${slug}`);
   };
 
-  const getProgressPercentage = (topicId: string) => {
-    const solved = getTopicProgress(topicId);
-    return Math.min((solved / 5) * 100, 100); // 5 problems per topic
-  };
-
-  const isProblemSolved = (problemId: string) => {
-    // Check if this specific problem is solved
-    if (!progress?.solvedProblems) return false;
-    return progress.solvedProblems.includes(problemId);
-  };
-
-  const getCurrentTopic = () => {
-    // Find the topic with most progress but not completed
-    let currentTopic = topics[0];
-    let maxProgress = 0;
-    
-    for (const topic of topics) {
-      const progress = getTopicProgress(topic.id);
-      if (progress > maxProgress && progress < 5) {
-        maxProgress = progress;
-        currentTopic = topic;
-      }
-    }
-    
-    // If all topics are completed, show the last one
-    if (maxProgress === 0) {
-      currentTopic = topics[topics.length - 1];
-    }
-    
-    return currentTopic;
-  };
-
-  const getNextTopic = () => {
-    const currentTopic = getCurrentTopic();
-    const currentIndex = topics.findIndex(t => t.id === currentTopic.id);
-    
-    // If current topic is completed, move to next
-    if (getTopicProgress(currentTopic.id) >= 5) {
-      return topics[Math.min(currentIndex + 1, topics.length - 1)];
-    }
-    
-    return currentTopic;
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Topic Progress</h2>
-          <p className="text-muted-foreground">Track your progress across different DSA topics</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-4 bg-muted rounded mb-2"></div>
-                <div className="h-3 bg-muted rounded mb-4"></div>
-                <div className="h-8 bg-muted rounded"></div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-3 text-muted-foreground">Loading topics...</p>
         </div>
       </div>
     );
@@ -163,77 +141,193 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold mb-2">Topic Progress</h2>
-        <p className="text-muted-foreground">Track your progress across different DSA topics</p>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold">Topic Progress</h1>
+        <p className="text-muted-foreground">Master DSA topics with theory, practice, quizzes & interview prep</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {topics.map((topic) => {
-          const solved = getTopicProgress(topic.id);
-          const progressPercent = getProgressPercentage(topic.id);
-          const problems = topicProblems[topic.id] || [];
-          
-          return (
-            <Card key={topic.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-lg">{topic.name}</h3>
-                  <Badge variant="outline" className="text-sm">
-                    {solved}/5
-                  </Badge>
-                </div>
-                
-                <p className="text-sm text-muted-foreground mb-4">
-                  {solved} problems solved
-                </p>
-
-                <div className="space-y-3">
-                  <Progress value={progressPercent} className="h-2" />
-                  
-                  <Button 
-                    className="w-full gap-2"
-                    onClick={() => handleStartTopic(topic.id)}
-                  >
-                    <Play className="h-4 w-4" />
-                    {solved === 0 ? 'Start Topic' : 'Continue Topic'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Topics Mastered</p>
+              <p className="text-2xl font-bold">{topicsMastered}<span className="text-sm font-normal text-muted-foreground">/{totalTopics}</span></p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Code className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Problems Solved</p>
+              <p className="text-2xl font-bold">{totalProblemsSolved}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <HelpCircle className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Avg Quiz Score</p>
+              <p className="text-2xl font-bold">{avgQuizScore}%</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Trophy className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Rating</p>
+              <p className="text-2xl font-bold">{currentRating}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Summary Stats */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Overall Progress Summary</CardTitle>
-          <CardDescription>Your learning journey across all DSA topics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-primary">
-                {topics.reduce((total, topic) => total + getTopicProgress(topic.id), 0)}
-              </div>
-              <p className="text-sm text-muted-foreground">Total Problems Solved</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">
-                {topics.filter(topic => getTopicProgress(topic.id) >= 5).length}
-              </div>
-              <p className="text-sm text-muted-foreground">Topics Completed</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600">
-                {Math.round(topics.reduce((total, topic) => total + getProgressPercentage(topic.id), 0) / topics.length)}%
-              </div>
-              <p className="text-sm text-muted-foreground">Average Progress</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search topics..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All Levels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Levels</SelectItem>
+            <SelectItem value="beginner">Beginner</SelectItem>
+            <SelectItem value="intermediate">Intermediate</SelectItem>
+            <SelectItem value="advanced">Advanced</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Topics Grid */}
+      {filteredTopics.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-muted-foreground">No topics found. Try a different search or filter.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTopics.map(topic => {
+            const prog = getTopicProgress(topic);
+            const tc = getColor(topic.color);
+
+            return (
+              <Card
+                key={topic._id}
+                className={cn(
+                  "cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 group overflow-hidden",
+                  prog.overall >= 80 && "ring-2 ring-green-300"
+                )}
+                onClick={() => navigateToTopic(topic.slug)}
+              >
+                <CardContent className="p-0">
+                  <div className={cn("h-1.5", tc.bg)} />
+                  <div className="p-5 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center text-xl", tc.light)}>
+                          {topic.icon}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold group-hover:text-primary transition-colors">{topic.name}</h3>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border", DIFFICULTY_COLORS[topic.difficulty])}>
+                              {topic.difficulty}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> {topic.estimatedHours}h
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                    </div>
+
+                    <p className="text-xs text-muted-foreground line-clamp-2">{topic.description}</p>
+
+                    {/* Progress Ring + Breakdown */}
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-14 h-14 flex-shrink-0">
+                        <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                          <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30" />
+                          <circle
+                            cx="28" cy="28" r="24"
+                            stroke="currentColor" strokeWidth="4" fill="none"
+                            strokeDasharray={`${2 * Math.PI * 24}`}
+                            strokeDashoffset={`${2 * Math.PI * 24 * (1 - prog.overall / 100)}`}
+                            strokeLinecap="round"
+                            className={tc.text}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs font-bold">{Math.round(prog.overall)}%</span>
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <ProgressMini label="Theory" value={prog.theory} icon={<FileText className="h-3 w-3" />} />
+                        <ProgressMini label="Practice" value={prog.practice} icon={<Code className="h-3 w-3" />} />
+                        <ProgressMini label="Quiz" value={prog.quiz} icon={<HelpCircle className="h-3 w-3" />} />
+                        <ProgressMini label="Interview" value={prog.interview} icon={<MessageSquare className="h-3 w-3" />} />
+                      </div>
+                    </div>
+
+                    {/* Meta */}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
+                      <div className="flex gap-3">
+                        <span>{topic.subtopics?.length || 0} articles</span>
+                        <span>{topic.mcqCount || 0} MCQs</span>
+                        <span>{topic.interviewQuestionCount || 0} IQs</span>
+                      </div>
+                      <Button variant="ghost" size="sm" className={cn("h-7 text-xs gap-1 px-2", tc.text)}>
+                        {prog.overall > 0 ? 'Continue' : 'Start'} <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
-}; 
+};
+
+const ProgressMini = ({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) => (
+  <div className="flex items-center gap-2">
+    <div className="text-muted-foreground/60">{icon}</div>
+    <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+      <div
+        className={cn(
+          "h-full rounded-full transition-all",
+          value >= 80 ? "bg-green-500" : value > 0 ? "bg-primary" : "bg-transparent"
+        )}
+        style={{ width: `${Math.min(value, 100)}%` }}
+      />
+    </div>
+    <span className="text-[10px] text-muted-foreground w-7 text-right">{Math.round(value)}%</span>
+  </div>
+);

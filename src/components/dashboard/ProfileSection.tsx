@@ -20,8 +20,6 @@ interface ProfileSectionProps {
     graduationYear?: string;
     location?: string;
     portfolio?: string;
-    leetcodeProfile?: string;
-    geeksforgeeksProfile?: string;
     profilePicture?: string;
   };
   onProfileUpdate: (updatedUser: any) => void;

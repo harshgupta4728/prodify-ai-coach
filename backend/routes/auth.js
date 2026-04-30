@@ -4,6 +4,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const User = require('../models/User');
+const Otp = require('../models/Otp');
+const transporter = require('../lib/mailer');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -65,49 +67,175 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-// Signup
+// Generate OTP HTML email
+const getOtpEmailHtml = (otp, purpose) => `
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px 24px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">Prodify AI Coach</h1>
+    </div>
+    <div style="padding: 32px 24px; text-align: center;">
+      <p style="color: #374151; font-size: 16px; margin: 0 0 8px;">
+        ${purpose === 'signup' ? 'Verify your email to create your account' : 'Use this code to sign in'}
+      </p>
+      <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <span style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1f2937;">${otp}</span>
+      </div>
+      <p style="color: #6b7280; font-size: 14px; margin: 0;">This code expires in <strong>5 minutes</strong></p>
+      <p style="color: #9ca3af; font-size: 13px; margin: 16px 0 0;">If you didn't request this, you can safely ignore this email.</p>
+    </div>
+  </div>
+`;
+
+// Send OTP
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { email, purpose } = req.body;
+
+    if (!email || !purpose) {
+      return res.status(400).json({ error: 'Email and purpose are required.' });
+    }
+
+    if (!['signup', 'signin'].includes(purpose)) {
+      return res.status(400).json({ error: 'Invalid purpose. Must be signup or signin.' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+
+    if (purpose === 'signup' && existingUser) {
+      return res.status(400).json({ error: 'User already exists with this email.' });
+    }
+
+    if (purpose === 'signin' && !existingUser) {
+      return res.status(400).json({ error: 'No account found with this email.' });
+    }
+
+    // Delete any existing OTPs for this email+purpose
+    await Otp.deleteMany({ email: email.toLowerCase(), purpose });
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save hashed OTP
+    await new Otp({ email: email.toLowerCase(), otp, purpose }).save();
+
+    // Send email
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'harshgupta4728@gmail.com',
+      to: email,
+      subject: purpose === 'signup' ? 'Prodify - Verify Your Email' : 'Prodify - Sign In OTP',
+      html: getOtpEmailHtml(otp, purpose),
+    });
+
+    res.json({ message: 'OTP sent successfully to ' + email });
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+  }
+});
+
+// Signin with OTP
+router.post('/signin-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required.' });
+    }
+
+    const otpRecord = await Otp.findOne({ email: email.toLowerCase(), purpose: 'signin' });
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+    }
+
+    const isValid = await otpRecord.compareOtp(otp);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
+    }
+
+    // Delete used OTP
+    await Otp.deleteMany({ email: email.toLowerCase(), purpose: 'signin' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(400).json({ error: 'No account found with this email.' });
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.json({
+      message: 'Login successful',
+      user: user.toJSON(),
+      token
+    });
+  } catch (error) {
+    console.error('Signin OTP error:', error);
+    res.status(500).json({ error: 'Server error during OTP signin. Please try again.' });
+  }
+});
+
+// Signup (with OTP verification)
 router.post('/signup', async (req, res) => {
   try {
     console.log('Signup request received:', req.body);
-    const { name, email, password, leetcodeProfile, geeksforgeeksProfile } = req.body;
+    const { name, email, password, otp } = req.body;
 
     // Validate required fields
-    if (!name || !email || !password) {
-      return res.status(400).json({ 
-        error: 'Name, email, and password are required.' 
+    if (!name || !email || !password || !otp) {
+      return res.status(400).json({
+        error: 'Name, email, password, and OTP are required.'
       });
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        error: 'Please provide a valid email address.' 
+      return res.status(400).json({
+        error: 'Please provide a valid email address.'
       });
     }
 
     // Validate password length
     if (password.length < 6) {
-      return res.status(400).json({ 
-        error: 'Password must be at least 6 characters long.' 
+      return res.status(400).json({
+        error: 'Password must be at least 6 characters long.'
       });
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({ 
-        error: 'User already exists with this email.' 
+      return res.status(400).json({
+        error: 'User already exists with this email.'
       });
     }
+
+    // Verify OTP
+    const otpRecord = await Otp.findOne({ email: email.toLowerCase(), purpose: 'signup' });
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+    }
+
+    const isOtpValid = await otpRecord.compareOtp(otp);
+    if (!isOtpValid) {
+      return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
+    }
+
+    // Delete used OTP
+    await Otp.deleteMany({ email: email.toLowerCase(), purpose: 'signup' });
 
     // Create new user
     const user = new User({
       name,
       email,
       password,
-      leetcodeProfile: leetcodeProfile || '',
-      geeksforgeeksProfile: geeksforgeeksProfile || ''
     });
 
     await user.save();
@@ -219,13 +347,11 @@ router.put('/profile', auth, async (req, res) => {
     const { 
       name, 
       bio, 
-      university, 
-      major, 
-      graduationYear, 
-      location, 
-      portfolio,
-      leetcodeProfile, 
-      geeksforgeeksProfile 
+      university,
+      major,
+      graduationYear,
+      location,
+      portfolio
     } = req.body;
 
     console.log('Profile update request:', req.body);
@@ -243,8 +369,6 @@ router.put('/profile', auth, async (req, res) => {
     if (graduationYear !== undefined) user.graduationYear = graduationYear;
     if (location !== undefined) user.location = location;
     if (portfolio !== undefined) user.portfolio = portfolio;
-    if (leetcodeProfile !== undefined) user.leetcodeProfile = leetcodeProfile;
-    if (geeksforgeeksProfile !== undefined) user.geeksforgeeksProfile = geeksforgeeksProfile;
 
     console.log('Saving user with data:', user.toObject());
 

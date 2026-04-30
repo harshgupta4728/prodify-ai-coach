@@ -13,8 +13,8 @@ const problemBankSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['leetcode', 'geeksforgeeks', 'hackerrank'],
-    default: 'leetcode'
+    enum: ['prodify', 'hackerrank', 'codeforces', 'other'],
+    default: 'prodify'
   },
   problemUrl: {
     type: String,

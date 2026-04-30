@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,13 +15,20 @@ if (!process.env.JWT_SECRET) {
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
 const progressRoutes = require('./routes/progress');
+const topicRoutes = require('./routes/topics');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 // Middleware
 app.use(cors({
-  origin: 'https://prodify-ai-coach-frontend.onrender.com',
+  origin: [
+    'https://prodify-ai-coach-frontend.onrender.com',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:5173'
+  ],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -42,10 +48,9 @@ console.log('Static files served from:', uploadsDir);
 // Connect to MongoDB
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:harshgupta4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    // Direct connection string (bypasses SRV DNS lookup for restricted networks)
+    const defaultUri = 'mongodb://harshgupta4728:QZacVUXirg95GKIS@ac-ecwklhy-shard-00-00.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-01.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-02.pafygw3.mongodb.net:27017/?ssl=true&replicaSet=atlas-f082mj-shard-0&authSource=admin&retryWrites=true&w=majority&appName=prodify';
+    const conn = await mongoose.connect(process.env.MONGODB_URI || defaultUri);
     
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     console.log(`Database: ${conn.connection.name}`);
@@ -57,19 +62,14 @@ const connectDB = async () => {
 
 connectDB();
 
-// Create transporter for Gmail
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'harshgupta4728@gmail.com',
-    pass: process.env.EMAIL_PASS || 'uhso efjj zfaq zgfa'
-  }
-});
+// Shared email transporter
+const transporter = require('./lib/mailer');
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/topics', topicRoutes);
 
 // Email sending endpoint
 app.post('/api/send-email', async (req, res) => {

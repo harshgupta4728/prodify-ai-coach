@@ -29,8 +29,6 @@ interface Message {
 interface ChatbotProps {
   userData?: {
     name: string;
-    leetcodeProfile?: string;
-    geeksforgeeksProfile?: string;
   };
 }
 
@@ -76,18 +74,18 @@ export const Chatbot = ({ userData }: ChatbotProps) => {
       "What are the most important questions I should solve this week?": `Based on your profile, here are my top recommendations for this week:
 
 🎯 **Priority 1: Arrays & Two Pointers**
-- LeetCode #15: 3Sum (Medium)
-- LeetCode #11: Container With Most Water (Medium)
-- LeetCode #42: Trapping Rain Water (Hard)
+- 3Sum (Medium)
+- Container With Most Water (Medium)
+- Trapping Rain Water (Hard)
 
 🎯 **Priority 2: Dynamic Programming**
-- LeetCode #70: Climbing Stairs (Easy)
-- LeetCode #198: House Robber (Medium)
-- LeetCode #322: Coin Change (Medium)
+- Climbing Stairs (Easy)
+- House Robber (Medium)
+- Coin Change (Medium)
 
 🎯 **Priority 3: Trees & Graphs**
-- LeetCode #94: Binary Tree Inorder Traversal (Medium)
-- LeetCode #102: Binary Tree Level Order Traversal (Medium)
+- Binary Tree Inorder Traversal (Medium)
+- Binary Tree Level Order Traversal (Medium)
 
 Focus on these patterns as they're commonly asked in interviews. Would you like me to create a detailed study plan for any of these topics?`,
 
@@ -117,7 +115,7 @@ Focus on these patterns as they're commonly asked in interviews. Would you like 
 - Solve at least 2-3 problems daily
 - Focus on quality over quantity
 - Practice explaining your solutions out loud
-- Use platforms like LeetCode and GeeksForGeeks for practice
+- Practice consistently on Prodify's curated problem sets
 
 Would you like me to create a detailed schedule for any of these phases?`,
 
@@ -298,7 +296,7 @@ Would you like me to create a specific speed training schedule?`
     const defaultResponse = `I understand you're asking about "${userMessage}". Let me provide you with personalized guidance based on your DSA preparation journey.
 
 For the best experience, I recommend:
-1. **Connecting your LeetCode/GeeksForGeeks profiles** to get personalized recommendations
+1. **Solving daily problems** on Prodify to get personalized recommendations
 2. **Setting specific goals** for your preparation
 3. **Tracking your progress** regularly
 
@@ -356,7 +354,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           onClick={() => setIsOpen(true)}
-          className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg rounded-full h-14 w-14 p-0"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg rounded-full h-14 w-14 p-0"
         >
           <MessageCircle className="h-6 w-6" />
         </Button>
@@ -371,7 +369,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
         isMinimized && "h-16"
       )}>
         <CardHeader className={cn(
-          "bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-t-lg",
+          "bg-primary text-primary-foreground p-4 rounded-t-lg",
           isMinimized && "rounded-lg"
         )}>
           <div className="flex items-center justify-between">
@@ -418,15 +416,15 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                     )}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-orange-600" />
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Bot className="h-4 w-4 text-primary" />
                       </div>
                     )}
                     <div
                       className={cn(
                         "max-w-[80%] rounded-lg p-3",
                         message.sender === 'user'
-                          ? 'bg-orange-500 text-white'
+                          ? 'bg-primary text-primary-foreground'
                           : 'bg-gray-100 text-gray-900'
                       )}
                     >
@@ -439,7 +437,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                       </div>
                     </div>
                     {message.sender === 'user' && (
-                      <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
                         <User className="h-4 w-4 text-white" />
                       </div>
                     )}
@@ -447,14 +445,14 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                 ))}
                 {isLoading && (
                   <div className="flex gap-3 justify-start">
-                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-orange-600" />
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-primary" />
                     </div>
                     <div className="bg-gray-100 rounded-lg p-3">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -471,7 +469,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                     <Badge
                       key={index}
                       variant="outline"
-                      className="text-xs cursor-pointer hover:bg-orange-50 hover:border-orange-200"
+                      className="text-xs cursor-pointer hover:bg-primary/5 hover:border-primary/20"
                       onClick={() => handleSuggestedQuestion(question)}
                     >
                       {question.length > 30 ? question.substring(0, 30) + '...' : question}
@@ -491,7 +489,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                 <Button
                   onClick={handleSendMessage}
                   disabled={!inputValue.trim() || isLoading}
-                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   size="sm"
                 >
                   <Send className="h-4 w-4" />

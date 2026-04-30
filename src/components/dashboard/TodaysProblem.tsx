@@ -324,7 +324,7 @@ def solve():
                   onClick={() => window.open(todaysProblem.problemUrl, '_blank')}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  View on LeetCode
+                  View Problem
                 </Button>
                 {todaysProblem.isSolved && (
                   <Badge className="bg-green-100 text-green-800">

@@ -87,7 +87,7 @@ export const SubmissionHistory = ({ problemId, problemTitle, isOpen, onClose }: 
     const colors: { [key: string]: string } = {
       python: 'bg-blue-100 text-blue-800',
       javascript: 'bg-yellow-100 text-yellow-800',
-      java: 'bg-orange-100 text-orange-800',
+      java: 'bg-red-100 text-red-800',
       cpp: 'bg-purple-100 text-purple-800',
       csharp: 'bg-green-100 text-green-800',
       go: 'bg-cyan-100 text-cyan-800',

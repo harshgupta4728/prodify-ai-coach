@@ -101,7 +101,7 @@ router.post('/problem', auth, async (req, res) => {
       rating
     } = req.body;
 
-    // Allow multiple submissions for the same problem (like LeetCode)
+    // Allow multiple submissions for the same problem
     // No need to check if already exists - just create a new submission
 
     // Create new problem record
@@ -511,14 +511,14 @@ router.post('/mark-solved', auth, async (req, res) => {
       return res.status(404).json({ error: 'Problem not found in problem bank.' });
     }
 
-    // Allow multiple submissions for the same problem (like LeetCode)
+    // Allow multiple submissions for the same problem
     // No need to check if already solved - just create a new submission
 
     // Create solved problem record
     const solvedProblem = new Problem({
       userId: req.user._id,
       title: problemBank.title,
-      platform: problemBank.platform || 'leetcode',
+      platform: problemBank.platform || 'prodify',
       problemId: problemBank.problemId,
       problemUrl: problemBank.problemUrl,
       difficulty: problemBank.difficulty,
@@ -803,7 +803,7 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
     const solvedProblem = new Problem({
       userId: req.user._id,
       title: todaysProblem.title,
-      platform: 'leetcode',
+      platform: 'prodify',
       problemId: todaysProblem.problemId,
       problemUrl: todaysProblem.problemUrl,
       difficulty: todaysProblem.difficulty,
@@ -908,4 +908,88 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+// ============ QUIZ / ARTICLE / INTERVIEW TRACKING ============
+
+// Save quiz score for a topic
+router.post('/quiz-score', auth, async (req, res) => {
+  try {
+    const { topicSlug, score, totalQuestions } = req.body;
+    if (!topicSlug || score === undefined || !totalQuestions) {
+      return res.status(400).json({ error: 'topicSlug, score, and totalQuestions are required.' });
+    }
+
+    let progress = await Progress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = new Progress({ userId: req.user._id });
+    }
+
+    const existing = progress.quizScores.get(topicSlug);
+    const newEntry = {
+      bestScore: existing ? Math.max(existing.bestScore, score) : score,
+      totalQuestions,
+      attempts: existing ? existing.attempts + 1 : 1,
+      lastAttempt: new Date()
+    };
+    progress.quizScores.set(topicSlug, newEntry);
+    await progress.save();
+
+    res.json({ message: 'Quiz score saved.', quizScore: newEntry });
+  } catch (error) {
+    console.error('Save quiz score error:', error);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// Mark article/subtopic as read
+router.patch('/article-read', auth, async (req, res) => {
+  try {
+    const { topicSlug, subtopicId } = req.body;
+    if (!topicSlug || !subtopicId) {
+      return res.status(400).json({ error: 'topicSlug and subtopicId are required.' });
+    }
+
+    let progress = await Progress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = new Progress({ userId: req.user._id });
+    }
+
+    // Deduplicate
+    const alreadyRead = progress.articlesRead.some(
+      a => a.topicSlug === topicSlug && a.subtopicId === subtopicId
+    );
+    if (!alreadyRead) {
+      progress.articlesRead.push({ topicSlug, subtopicId, readAt: new Date() });
+      await progress.save();
+    }
+
+    res.json({ message: 'Article marked as read.', articlesRead: progress.articlesRead });
+  } catch (error) {
+    console.error('Mark article read error:', error);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// Track interview questions viewed
+router.patch('/interview-viewed', auth, async (req, res) => {
+  try {
+    const { topicSlug, count } = req.body;
+    if (!topicSlug) {
+      return res.status(400).json({ error: 'topicSlug is required.' });
+    }
+
+    let progress = await Progress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = new Progress({ userId: req.user._id });
+    }
+
+    progress.interviewQuestionsViewed.set(topicSlug, count || 0);
+    await progress.save();
+
+    res.json({ message: 'Interview viewed count updated.', interviewQuestionsViewed: Object.fromEntries(progress.interviewQuestionsViewed) });
+  } catch (error) {
+    console.error('Track interview viewed error:', error);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+module.exports = router;

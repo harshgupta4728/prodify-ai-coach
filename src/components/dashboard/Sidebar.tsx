@@ -1,4 +1,4 @@
-import { Brain, LayoutDashboard, Calendar, User, Settings, LogOut, Code, Target, Flame, BarChart3 } from "lucide-react";
+import { Brain, LayoutDashboard, Calendar, User, Settings, LogOut, Flame, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,6 @@ const sidebarItems = [
   { id: "todays-problem", label: "Today's Problem", icon: Flame },
   { id: "topic-progress", label: "Topic Progress", icon: BarChart3 },
   { id: "planner", label: "My Planner", icon: Calendar },
-  { id: "profiles", label: "Coding Profiles", icon: Code },
   { id: "profile", label: "Profile", icon: User },
 ];
 
