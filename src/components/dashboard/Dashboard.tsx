@@ -32,12 +32,19 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
 
   const activeSection = searchParams.get("section") || "dashboard";
   const topicId = searchParams.get("topicId") || "";
+  const problemId = searchParams.get("problemId") || "";
 
   const setActiveSection = (section: string) => {
-    // Support "topic-detail&topicId=arrays" format from TopicProgress navigation
-    if (section.includes('&topicId=')) {
-      const [sec, param] = section.split('&topicId=');
-      setSearchParams({ section: sec, topicId: param });
+    // Support "section&key=value&key2=value2" format for navigation
+    if (section.includes('&')) {
+      const parts = section.split('&');
+      const sec = parts[0];
+      const params: Record<string, string> = { section: sec };
+      for (let i = 1; i < parts.length; i++) {
+        const [key, value] = parts[i].split('=');
+        if (key && value) params[key] = value;
+      }
+      setSearchParams(params);
     } else {
       setSearchParams({ section });
     }
@@ -61,16 +68,33 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
         return <Planner userEmail={currentUserData.email} />;
 
       case "todays-problem":
-        return <TodaysProblem />;
+        return (
+          <ProblemInterface
+            topic="todays-problem"
+            onBack={() => setActiveSection("dashboard")}
+          />
+        );
 
       case "topic-progress":
         return <TopicProgress onNavigateToSection={setActiveSection} />;
 
       case "topic-detail":
-        return <TopicDetailView topicId={topicId || "arrays"} onBack={() => setActiveSection("topic-progress")} />;
+        return (
+          <TopicDetailView
+            topicId={topicId || "arrays"}
+            onBack={() => setActiveSection("topic-progress")}
+            onNavigateToSection={setActiveSection}
+          />
+        );
 
       case "problem-interface":
-        return <ProblemInterface onBack={() => setActiveSection("topic-progress")} />;
+        return (
+          <ProblemInterface
+            topic={topicId || undefined}
+            problemId={problemId || undefined}
+            onBack={() => topicId ? setActiveSection(`topic-detail&topicId=${topicId}`) : setActiveSection("topic-progress")}
+          />
+        );
 
       case "profile":
         return <ProfileSection userData={currentUserData} onProfileUpdate={handleProfileUpdate} />;

@@ -402,6 +402,15 @@ class ApiService {
   async markInterviewViewed(data: { topicSlug: string; count: number }): Promise<any> {
     return await this.request<any>('/progress/interview-viewed', { method: 'PATCH', body: JSON.stringify(data) });
   }
+
+  // ============ Code Execution ============
+
+  async executeCode(data: { language: string; code: string; stdin?: string }): Promise<any> {
+    return this.request<any>('/code/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiService = new ApiService(); 

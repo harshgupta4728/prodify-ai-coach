@@ -14,6 +14,7 @@ import { apiService } from "@/lib/api";
 interface TopicDetailViewProps {
   topicId: string;
   onBack: () => void;
+  onNavigateToSection?: (section: string) => void;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -31,7 +32,7 @@ const FREQUENCY_COLORS: Record<string, string> = {
   high: 'bg-orange-100 text-orange-700',
 };
 
-export const TopicDetailView = ({ topicId, onBack }: TopicDetailViewProps) => {
+export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicDetailViewProps) => {
   const [topic, setTopic] = useState<any>(null);
   const [mcqs, setMcqs] = useState<any[]>([]);
   const [interviewQuestions, setInterviewQuestions] = useState<any[]>([]);
@@ -379,7 +380,12 @@ export const TopicDetailView = ({ topicId, onBack }: TopicDetailViewProps) => {
                         </div>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => onNavigateToSection?.(`problem-interface&topicId=${topicId}&problemId=${prob.problemId}`)}
+                    >
                       <Play className="h-3 w-3" /> Solve
                     </Button>
                   </CardContent>

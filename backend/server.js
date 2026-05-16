@@ -16,6 +16,7 @@ const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
 const progressRoutes = require('./routes/progress');
 const topicRoutes = require('./routes/topics');
+const codeRoutes = require('./routes/code');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -70,6 +71,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/topics', topicRoutes);
+app.use('/api/code', codeRoutes);
 
 // Email sending endpoint
 app.post('/api/send-email', async (req, res) => {
