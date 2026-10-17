@@ -37,6 +37,7 @@ interface SettingsSectionProps {
     portfolio?: string;
     lastLogin?: string;
     createdAt?: string;
+    isAdmin?: boolean;
   };
   onLogout: () => void;
   onNavigateToSection?: (section: string) => void;
@@ -213,8 +214,9 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
     try {
       let progressData = null;
       let tasksData = null;
-      try { progressData = await apiService.getProgress(); } catch {}
-      try { tasksData = await apiService.getTasks(); } catch {}
+      // Export whatever loads; a failed section is left out
+      try { progressData = await apiService.getProgress(); } catch { /* skip */ }
+      try { tasksData = await apiService.getTasks(); } catch { /* skip */ }
 
       const exportObj = {
         exportDate: new Date().toISOString(),
@@ -666,22 +668,24 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
           </CardContent>
         </Card>
 
-        {/* ═══════════════ ADMIN PANEL ═══════════════ */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" /> Content Management</CardTitle>
-            <CardDescription>Manage topics, MCQs, and interview questions for the learning platform</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <Button onClick={() => onNavigateToSection?.("admin")} variant="outline" className="gap-2">
-                <Sparkles className="h-4 w-4" />
-                Open Admin Panel
-              </Button>
-              <p className="text-xs text-muted-foreground">Add, edit, or remove learning content from the Topic Progress section</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* ═══════════════ ADMIN PANEL (accounts in the server's ADMIN_EMAILS only) ═══════════════ */}
+        {userData.isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" /> Content Management</CardTitle>
+              <CardDescription>Manage topics, MCQs, and interview questions for the learning platform</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <Button onClick={() => onNavigateToSection?.("admin")} variant="outline" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Open Admin Panel
+                </Button>
+                <p className="text-xs text-muted-foreground">Add, edit, or remove learning content from the Topic Progress section</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ═══════════════ 13. SESSION SECURITY ═══════════════ */}
         <Card>

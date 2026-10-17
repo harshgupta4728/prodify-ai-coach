@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const ProblemBank = require('./models/ProblemBank');
-require('dotenv').config();
+const connectForSeeding = require('./lib/seedConnect');
 
 const problems = [
   // ARRAYS - 5 problems
@@ -1410,15 +1410,23 @@ const problems = [
 
 async function seedProblemBank() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:HgTg4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify');
-    console.log('Connected to MongoDB');
+    await connectForSeeding('delete and re-insert every problem in the problem bank');
 
     // Clear existing problems
     await ProblemBank.deleteMany({});
     console.log('Cleared existing problems');
 
+    // The list repeats a couple of problemIds; keep the first copy of each so the insert
+    // doesn't stop at the duplicate (it used to, leaving the last problems out)
+    const uniqueProblems = problems.filter(
+      (problem, index) => problems.findIndex((other) => other.problemId === problem.problemId) === index
+    );
+    if (uniqueProblems.length < problems.length) {
+      console.log(`Skipped ${problems.length - uniqueProblems.length} repeated problemId(s)`);
+    }
+
     // Insert new problems
-    const result = await ProblemBank.insertMany(problems);
+    const result = await ProblemBank.insertMany(uniqueProblems);
     console.log(`Successfully seeded ${result.length} problems`);
 
     mongoose.connection.close();

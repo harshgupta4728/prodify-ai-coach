@@ -172,6 +172,29 @@ const progressSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// One progress document per user. This unique index is not declared with
+// schema.index(): if duplicates already exist, Mongoose's automatic index build
+// would crash the server. server.js calls this at startup instead, and it only
+// warns until `npm run fix:duplicate-progress` has cleaned up.
+progressSchema.statics.ensureUniqueUserIndex = async function () {
+  try {
+    await this.collection.createIndex({ userId: 1 }, { unique: true });
+  } catch (error) {
+    console.warn(`Progress: unique index on userId not created (${error.message}). ` +
+      'Run "npm run fix:duplicate-progress" to see why; it removes duplicates and replaces a non-unique userId index.');
+  }
+};
+
+// Atomic get-or-create, so two requests for a brand-new user can't each create a document.
+// timestamps: false keeps it a pure read for existing documents (no updatedAt bump).
+progressSchema.statics.forUser = function (userId) {
+  return this.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true, timestamps: false }
+  );
+};
+
 // Update streak when progress is updated
 progressSchema.pre('save', function(next) {
   const today = new Date();

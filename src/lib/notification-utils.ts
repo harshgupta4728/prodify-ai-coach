@@ -35,41 +35,17 @@ export const sendBrowserNotification = (title: string, body: string) => {
 
 import { apiService } from './api';
 
+// The server sends it to the signed-in user's own address; userEmail only signals that one exists
 export const sendEmailNotification = async (subject: string, message: string, userEmail?: string) => {
   const settings = getNotificationSettings();
-  
-  console.log('=== EMAIL NOTIFICATION DEBUG ===');
-  console.log('Email notification settings:', { 
-    emailEnabled: settings.email, 
-    userEmail: userEmail,
-    willSend: settings.email && userEmail 
-  });
-  
+
   if (settings.email && userEmail) {
     try {
-      console.log('🚀 Sending email notification:', { 
-        to: userEmail, 
-        subject: subject, 
-        message: message.substring(0, 100) + '...' 
-      });
-      
-      const result = await apiService.sendEmailNotification({
-        to: userEmail,
-        subject: subject,
-        body: message
-      });
-      
-      console.log('✅ Email notification sent successfully:', result);
-      console.log('📧 Email was sent TO:', userEmail);
+      await apiService.sendEmailNotification({ subject, body: message });
     } catch (error) {
-      console.error('❌ Failed to send email notification:', error);
+      console.error('Failed to send email notification:', error);
     }
-  } else {
-    console.log('⏸️ Email notifications disabled or no user email provided');
-    console.log('Settings:', settings);
-    console.log('UserEmail:', userEmail);
   }
-  console.log('=== END EMAIL DEBUG ===');
 };
 
 export const sendNotification = async (title: string, message: string, type: 'browser' | 'email' | 'both' = 'both', userEmail?: string) => {

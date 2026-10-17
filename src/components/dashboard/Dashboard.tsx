@@ -22,6 +22,7 @@ interface DashboardProps {
     graduationYear?: string;
     location?: string;
     portfolio?: string;
+    isAdmin?: boolean;
   };
   onLogout: () => void;
 }
@@ -103,6 +104,10 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
         return <SettingsSection userData={currentUserData} onLogout={onLogout} onNavigateToSection={setActiveSection} />;
 
       case "admin":
+        // Hidden for non-admins; the server also rejects their content changes
+        if (!currentUserData.isAdmin) {
+          return <DashboardOverview userName={currentUserData.name} onNavigateToSection={setActiveSection} />;
+        }
         return <AdminPanel onBack={() => setActiveSection("settings")} />;
 
       default:

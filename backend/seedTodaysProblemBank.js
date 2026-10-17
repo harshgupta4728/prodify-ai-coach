@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 const TodaysProblemBank = require('./models/TodaysProblemBank');
 const ProblemBank = require('./models/ProblemBank');
-require('dotenv').config();
+const connectForSeeding = require('./lib/seedConnect');
 
 async function seedTodaysProblemBank() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://harshgupta4728:HgTg4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify');
-    console.log('Connected to MongoDB');
+    await connectForSeeding("delete and re-create today's problem bank");
 
     // Clear existing today's problems
     await TodaysProblemBank.deleteMany({});

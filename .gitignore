@@ -39,6 +39,12 @@ Thumbs.db
 logs
 *.log
 
+# User uploads (profile pictures) - personal data, never commit
+backend/uploads/
+
+# Generated secrets and database backups from the helper scripts
+local-only/
+
 # Runtime data
 pids
 *.pid
@@ -89,7 +95,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out

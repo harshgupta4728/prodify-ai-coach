@@ -9,6 +9,7 @@ import { User, Edit, Camera, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/lib/api";
 import { config } from "@/lib/config";
+import { safeExternalUrl } from "@/lib/utils";
 
 interface ProfileSectionProps {
   userData: {
@@ -322,10 +323,12 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
               />
             ) : (
               <p className="text-muted-foreground">
-                {profileData.portfolio ? (
-                  <a href={profileData.portfolio} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                {safeExternalUrl(profileData.portfolio) ? (
+                  <a href={safeExternalUrl(profileData.portfolio)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                     {profileData.portfolio}
                   </a>
+                ) : profileData.portfolio ? (
+                  profileData.portfolio
                 ) : (
                   "Not specified"
                 )}

@@ -1,52 +1,61 @@
 const express = require('express');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const config = require('../lib/config');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
+const Task = require('../models/Task');
+const Progress = require('../models/Progress');
+const Problem = require('../models/Problem');
 const transporter = require('../lib/mailer');
 const auth = require('../middleware/auth');
+const { otpPerEmail, otpPerIp, loginPerEmail } = require('../middleware/rateLimiters');
+const { normalizeEmail, isEmail, isNonEmptyString, isHttpUrl, pick } = require('../lib/validate');
 
 const router = express.Router();
 
+const uploadDir = path.join(__dirname, '..', 'uploads');
+
+// Raster images only (SVG can carry scripts). The stored extension comes from the
+// checked type, never from the client's filename, so nobody can upload "x.html".
+const IMAGE_EXTENSIONS = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Ensure uploads directory exists
-    const uploadDir = path.join(__dirname, '..', 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
+  destination: uploadDir,
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, `profile-${crypto.randomUUID()}${IMAGE_EXTENSIONS[file.mimetype]}`);
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept only image files
-  if (file.mimetype.startsWith('image/')) {
+  if (IMAGE_EXTENSIONS[file.mimetype]) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed!'), false);
+    cb(new Error('Only JPEG, PNG, WebP or GIF images are allowed.'), false);
   }
 };
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 1
   }
 });
 
 // Error handling middleware for multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    console.error('Multer error:', err);
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
     }
@@ -56,15 +65,62 @@ const handleMulterError = (err, req, res, next) => {
     return res.status(400).json({ error: 'File upload error: ' + err.message });
   }
   if (err) {
-    console.error('Upload error:', err);
     return res.status(400).json({ error: err.message });
   }
   next();
 };
 
+// Deletes a file from uploads/ given its stored "/uploads/name.jpg" path or bare name
+const removeUploadedFile = (storedPath) => {
+  if (!storedPath) return;
+  fs.promises.unlink(path.join(uploadDir, path.basename(storedPath))).catch(() => {});
+};
+
 // Generate JWT Token
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId }, config.jwtSecret, { algorithm: 'HS256', expiresIn: '7d' });
+};
+
+// User data sent to the client, plus whether this account may manage content
+const toPublicUser = (user) => ({ ...user.toJSON(), isAdmin: auth.isAdminEmail(user.email) });
+
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_TTL_MS = 5 * 60 * 1000;
+
+// Checks a submitted OTP. Each check uses up one attempt atomically, so even parallel
+// guesses can't get past OTP_MAX_ATTEMPTS. Returns an error message, or null if valid.
+const verifyOtp = async (email, purpose, otp) => {
+  if (typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
+    return 'Please enter the 6-digit OTP.';
+  }
+
+  const otpRecord = await Otp.findOneAndUpdate(
+    {
+      email,
+      purpose,
+      attempts: { $lt: OTP_MAX_ATTEMPTS },
+      // The TTL index only sweeps about once a minute, so check the age here too
+      createdAt: { $gt: new Date(Date.now() - OTP_TTL_MS) }
+    },
+    { $inc: { attempts: 1 } },
+    { new: true }
+  );
+  if (!otpRecord) {
+    return 'OTP expired or not found. Please request a new one.';
+  }
+
+  if (!(await otpRecord.compareOtp(otp))) {
+    const attemptsLeft = OTP_MAX_ATTEMPTS - otpRecord.attempts;
+    return attemptsLeft > 0
+      ? `Invalid OTP. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left.`
+      : 'Too many incorrect attempts. Please request a new OTP.';
+  }
+
+  // Delete used OTP
+  await Otp.deleteMany({ email, purpose });
+  return null;
 };
 
 // Generate OTP HTML email
@@ -87,9 +143,10 @@ const getOtpEmailHtml = (otp, purpose) => `
 `;
 
 // Send OTP
-router.post('/send-otp', async (req, res) => {
+router.post('/send-otp', otpPerIp, otpPerEmail, async (req, res) => {
   try {
-    const { email, purpose } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { purpose } = req.body;
 
     if (!email || !purpose) {
       return res.status(400).json({ error: 'Email and purpose are required.' });
@@ -99,12 +156,11 @@ router.post('/send-otp', async (req, res) => {
       return res.status(400).json({ error: 'Invalid purpose. Must be signup or signin.' });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!isEmail(email)) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.exists({ email });
 
     if (purpose === 'signup' && existingUser) {
       return res.status(400).json({ error: 'User already exists with this email.' });
@@ -115,17 +171,15 @@ router.post('/send-otp', async (req, res) => {
     }
 
     // Delete any existing OTPs for this email+purpose
-    await Otp.deleteMany({ email: email.toLowerCase(), purpose });
+    await Otp.deleteMany({ email, purpose });
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // 6-digit OTP from a cryptographically secure source
+    const otp = crypto.randomInt(100000, 1000000).toString();
 
     // Save hashed OTP
-    await new Otp({ email: email.toLowerCase(), otp, purpose }).save();
+    await new Otp({ email, otp, purpose }).save();
 
-    // Send email
     await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'harshgupta4728@gmail.com',
       to: email,
       subject: purpose === 'signup' ? 'Prodify - Verify Your Email' : 'Prodify - Sign In OTP',
       html: getOtpEmailHtml(otp, purpose),
@@ -133,59 +187,47 @@ router.post('/send-otp', async (req, res) => {
 
     res.json({ message: 'OTP sent successfully to ' + email });
   } catch (error) {
-    console.error('Send OTP error:', error);
+    console.error('Send OTP error:', error.message);
     res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
   }
 });
 
 // Signin with OTP
-router.post('/signin-otp', async (req, res) => {
+router.post('/signin-otp', loginPerEmail, async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { otp } = req.body;
 
     if (!email || !otp) {
       return res.status(400).json({ error: 'Email and OTP are required.' });
     }
 
-    const otpRecord = await Otp.findOne({ email: email.toLowerCase(), purpose: 'signin' });
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+    const otpError = await verifyOtp(email, 'signin', otp);
+    if (otpError) {
+      return res.status(400).json({ error: otpError });
     }
 
-    const isValid = await otpRecord.compareOtp(otp);
-    if (!isValid) {
-      return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
-    }
-
-    // Delete used OTP
-    await Otp.deleteMany({ email: email.toLowerCase(), purpose: 'signin' });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOneAndUpdate({ email }, { lastLogin: new Date() }, { new: true });
     if (!user) {
       return res.status(400).json({ error: 'No account found with this email.' });
     }
 
-    user.lastLogin = new Date();
-    await user.save();
-
-    const token = generateToken(user._id);
-
     res.json({
       message: 'Login successful',
-      user: user.toJSON(),
-      token
+      user: toPublicUser(user),
+      token: generateToken(user._id)
     });
   } catch (error) {
-    console.error('Signin OTP error:', error);
+    console.error('Signin OTP error:', error.message);
     res.status(500).json({ error: 'Server error during OTP signin. Please try again.' });
   }
 });
 
 // Signup (with OTP verification)
-router.post('/signup', async (req, res) => {
+router.post('/signup', loginPerEmail, async (req, res) => {
   try {
-    console.log('Signup request received:', req.body);
-    const { name, email, password, otp } = req.body;
+    const { name, password, otp } = req.body;
+    const email = normalizeEmail(req.body.email);
 
     // Validate required fields
     if (!name || !email || !password || !otp) {
@@ -194,226 +236,186 @@ router.post('/signup', async (req, res) => {
       });
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!isNonEmptyString(name, 100)) {
+      return res.status(400).json({ error: 'Please enter a name of at most 100 characters.' });
+    }
+
+    if (!isEmail(email)) {
       return res.status(400).json({
         error: 'Please provide a valid email address.'
       });
     }
 
-    // Validate password length
-    if (password.length < 6) {
+    if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
       return res.status(400).json({
-        error: 'Password must be at least 6 characters long.'
+        error: `Password must be ${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_LENGTH} characters long.`
       });
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
+    if (await User.exists({ email })) {
       return res.status(400).json({
         error: 'User already exists with this email.'
       });
     }
 
-    // Verify OTP
-    const otpRecord = await Otp.findOne({ email: email.toLowerCase(), purpose: 'signup' });
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+    const otpError = await verifyOtp(email, 'signup', otp);
+    if (otpError) {
+      return res.status(400).json({ error: otpError });
     }
-
-    const isOtpValid = await otpRecord.compareOtp(otp);
-    if (!isOtpValid) {
-      return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
-    }
-
-    // Delete used OTP
-    await Otp.deleteMany({ email: email.toLowerCase(), purpose: 'signup' });
 
     // Create new user
     const user = new User({
-      name,
+      name: name.trim(),
       email,
       password,
     });
 
     await user.save();
 
-    // Generate token
-    const token = generateToken(user._id);
-
     res.status(201).json({
       message: 'User created successfully',
-      user: user.toJSON(),
-      token
+      user: toPublicUser(user),
+      token: generateToken(user._id)
     });
 
   } catch (error) {
-    console.error('Signup error:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    
+    console.error('Signup error:', error.message);
+
     // Handle specific MongoDB errors
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', ') 
-      });
-    }
-    
-    if (error.code === 11000) {
-      return res.status(400).json({ 
-        error: 'User already exists with this email.' 
+      return res.status(400).json({
+        error: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', ')
       });
     }
 
-    res.status(500).json({ 
-      error: 'Server error during signup. Please try again.',
-      details: error.message 
-    });
+    if (error.code === 11000) {
+      return res.status(400).json({
+        error: 'User already exists with this email.'
+      });
+    }
+
+    res.status(500).json({ error: 'Server error during signup. Please try again.' });
   }
 });
 
 // Signin
-router.post('/signin', async (req, res) => {
+router.post('/signin', loginPerEmail, async (req, res) => {
   try {
-    console.log('Signin request received:', req.body);
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password } = req.body;
 
     // Validate required fields
-    if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'Email and password are required.' 
+    if (!email || !password || typeof password !== 'string') {
+      return res.status(400).json({
+        error: 'Email and password are required.'
       });
     }
 
-    // Find user by email
+    // Same message for unknown email and wrong password
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ 
-        error: 'Invalid email or password.' 
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(400).json({
+        error: 'Invalid email or password.'
       });
     }
 
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ 
-        error: 'Invalid email or password.' 
-      });
-    }
-
-    // Update last login
+    // Update last login (updateOne skips re-validating the whole document)
     user.lastLogin = new Date();
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
+    await User.updateOne({ _id: user._id }, { lastLogin: user.lastLogin });
 
     res.json({
       message: 'Login successful',
-      user: user.toJSON(),
-      token
+      user: toPublicUser(user),
+      token: generateToken(user._id)
     });
 
   } catch (error) {
-    console.error('Signin error:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    res.status(500).json({ 
-      error: 'Server error during signin. Please try again.',
-      details: error.message 
-    });
+    console.error('Signin error:', error.message);
+    res.status(500).json({ error: 'Server error during signin. Please try again.' });
   }
 });
 
 // Get current user
 router.get('/me', auth, async (req, res) => {
-  try {
-    res.json({
-      user: req.user.toJSON()
-    });
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Server error.' });
-  }
+  res.json({
+    user: toPublicUser(req.user)
+  });
 });
+
+// Editable profile fields and their maximum lengths
+const PROFILE_FIELDS = {
+  name: 100,
+  bio: 1000,
+  university: 200,
+  major: 200,
+  graduationYear: 20,
+  location: 200,
+  portfolio: 500
+};
 
 // Update user profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { 
-      name, 
-      bio, 
-      university,
-      major,
-      graduationYear,
-      location,
-      portfolio
-    } = req.body;
+    const updates = pick(req.body, Object.keys(PROFILE_FIELDS));
 
-    console.log('Profile update request:', req.body);
+    const invalidField = Object.keys(updates).find(
+      (field) => typeof updates[field] !== 'string' || updates[field].length > PROFILE_FIELDS[field]
+    );
+    if (invalidField) {
+      return res.status(400).json({ error: `${invalidField} must be text of at most ${PROFILE_FIELDS[invalidField]} characters.` });
+    }
+    if (updates.name !== undefined && !updates.name.trim()) {
+      return res.status(400).json({ error: 'Name cannot be empty.' });
+    }
+    if (updates.portfolio && !isHttpUrl(updates.portfolio)) {
+      return res.status(400).json({ error: 'Portfolio must be a full link starting with http:// or https://' });
+    }
 
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    // Update fields
-    if (name !== undefined) user.name = name;
-    if (bio !== undefined) user.bio = bio;
-    if (university !== undefined) user.university = university;
-    if (major !== undefined) user.major = major;
-    if (graduationYear !== undefined) user.graduationYear = graduationYear;
-    if (location !== undefined) user.location = location;
-    if (portfolio !== undefined) user.portfolio = portfolio;
-
-    console.log('Saving user with data:', user.toObject());
-
-    const savedUser = await user.save();
-    console.log('User saved successfully:', savedUser._id);
+    user.set(updates);
+    await user.save({ validateModifiedOnly: true });
 
     res.json({
       message: 'Profile updated successfully',
-      user: savedUser.toJSON()
+      user: toPublicUser(user)
     });
 
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('Update profile error:', error.message);
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', ') 
+      return res.status(400).json({
+        error: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', ')
       });
     }
-    res.status(500).json({ error: 'Server error during profile update: ' + error.message });
+    res.status(500).json({ error: 'Server error during profile update.' });
   }
 });
 
-// Delete account
+// Delete account and everything stored for it
 router.delete('/account', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
+    const userId = req.user._id;
 
-    // Import Task model
-    const Task = require('../models/Task');
-
-    // Delete all tasks associated with the user
-    await Task.deleteMany({ userId: req.user._id });
-
-    // Delete the user
-    await User.findByIdAndDelete(req.user._id);
+    await Promise.all([
+      Task.deleteMany({ userId }),
+      Progress.deleteMany({ userId }),
+      Problem.deleteMany({ userId }),
+      Otp.deleteMany({ email: req.user.email })
+    ]);
+    await User.findByIdAndDelete(userId);
+    removeUploadedFile(req.user.profilePicture);
 
     res.json({
       message: 'Account deleted successfully'
     });
 
   } catch (error) {
-    console.error('Delete account error:', error);
+    console.error('Delete account error:', error.message);
     res.status(500).json({ error: 'Server error during account deletion.' });
   }
 });
@@ -421,134 +423,57 @@ router.delete('/account', auth, async (req, res) => {
 // Upload profile picture
 router.post('/profile-picture', auth, upload.single('profilePicture'), handleMulterError, async (req, res) => {
   try {
-    console.log('Profile picture upload initiated for user:', req.user._id);
-    console.log('Request file:', req.file);
-
     if (!req.file) {
-      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { profilePicture: `/uploads/${req.file.filename}` },
+      { new: true }
+    );
     if (!user) {
-      console.log('User not found:', req.user._id);
+      removeUploadedFile(req.file.filename);
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    console.log('User found:', user._id);
-    console.log('Uploaded file info:', {
-      filename: req.file.filename,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      path: req.file.path
-    });
-
     // Delete old profile picture if it exists
-    if (user.profilePicture) {
-      console.log('Deleting old profile picture:', user.profilePicture);
-      try {
-        // Extract filename from the stored path
-        const filename = user.profilePicture.split('/').pop();
-        if (filename) {
-          const oldPicturePath = path.join(__dirname, '..', 'uploads', filename);
-          if (fs.existsSync(oldPicturePath)) {
-            fs.unlinkSync(oldPicturePath);
-            console.log('Old profile picture deleted successfully');
-          }
-        }
-      } catch (deleteError) {
-        console.log('Error deleting old profile picture (non-critical):', deleteError.message);
-      }
-    }
-
-    // Update user's profile picture
-    user.profilePicture = `/uploads/${req.file.filename}`;
-    console.log('Saving user with new profile picture path:', user.profilePicture);
-    
-    await user.save();
-    console.log('User saved successfully');
+    removeUploadedFile(req.user.profilePicture);
 
     res.json({
       message: 'Profile picture uploaded successfully',
       profilePicture: user.profilePicture,
-      user: user.toJSON()
+      user: toPublicUser(user)
     });
 
   } catch (error) {
-    console.error('Profile picture upload error:', error);
-    console.error('Error stack:', error.stack);
-    
-    // Delete uploaded file if there was an error
+    console.error('Profile picture upload error:', error.message);
     if (req.file) {
-      try {
-        const filePath = req.file.path;
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log('Cleaned up uploaded file after error');
-        }
-      } catch (cleanupError) {
-        console.error('Error cleaning up file:', cleanupError.message);
-      }
+      removeUploadedFile(req.file.filename);
     }
-    
-    res.status(500).json({ 
-      error: 'Server error during profile picture upload.',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Server error during profile picture upload.' });
   }
 });
 
 // Remove profile picture
 router.delete('/profile-picture', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByIdAndUpdate(req.user._id, { profilePicture: '' }, { new: true });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    console.log('Removing profile picture for user:', user._id);
-    console.log('Current profile picture path:', user.profilePicture);
-
-    // Delete profile picture file if it exists
-    if (user.profilePicture) {
-      // Extract filename from the stored path (e.g., "/uploads/profile-123.jpg" -> "profile-123.jpg")
-      const filename = user.profilePicture.split('/').pop();
-      console.log('Extracted filename:', filename);
-      
-      if (filename) {
-        const picturePath = path.join(__dirname, '..', 'uploads', filename);
-        console.log('Full picture path:', picturePath);
-        
-        if (fs.existsSync(picturePath)) {
-          console.log('File exists, deleting...');
-          fs.unlinkSync(picturePath);
-          console.log('File deleted successfully');
-        } else {
-          console.log('File does not exist at path:', picturePath);
-        }
-      }
-    } else {
-      console.log('No profile picture to remove');
-    }
-
-    // Remove profile picture from user
-    user.profilePicture = '';
-    await user.save();
-    console.log('Profile picture removed from database');
+    removeUploadedFile(req.user.profilePicture);
 
     res.json({
       message: 'Profile picture removed successfully',
-      user: user.toJSON()
+      user: toPublicUser(user)
     });
 
   } catch (error) {
-    console.error('Profile picture removal error:', error);
-    res.status(500).json({ 
-      error: 'Server error during profile picture removal.',
-      details: error.message 
-    });
+    console.error('Profile picture removal error:', error.message);
+    res.status(500).json({ error: 'Server error during profile picture removal.' });
   }
 });
 
-module.exports = router; 
+module.exports = router;

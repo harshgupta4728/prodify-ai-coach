@@ -1,45 +1,33 @@
-# Email Notification Setup Guide
+# Prodify AI Coach - Backend
 
-## Step 1: Install Dependencies
-```bash
-npm install express cors nodemailer
-```
+Express + MongoDB (Mongoose) API. Setup: [../SETUP_GUIDE.md](../SETUP_GUIDE.md). Deployment: [../RENDER_DEPLOYMENT.md](../RENDER_DEPLOYMENT.md).
 
-## Step 2: Configure Gmail
-1. Go to your Gmail account settings
-2. Enable 2-factor authentication
-3. Generate an "App Password":
-   - Go to Security → App passwords
-   - Select "Mail" and your device
-   - Copy the generated password
+## Layout
 
-## Step 3: Update server.js
-Replace these lines in `server.js`:
-```javascript
-user: 'your-email@gmail.com', // Replace with your Gmail
-pass: 'your-app-password' // Replace with your Gmail app password
-```
+- `server.js` - app setup, security middleware, `/api/send-email`, health check
+- `lib/config.js` - reads and validates environment variables; the only place secrets are read
+- `lib/mailer.js` - sends email through Brevo's HTTP API
+- `lib/validate.js` - small input-validation helpers
+- `middleware/` - `auth.js` (JWT and admin check), `rateLimiters.js`, `sanitize.js` (strips MongoDB operators from input)
+- `routes/` - auth, tasks, progress, topics, code execution
+- `models/` - Mongoose schemas
+- `seed/`, `seed*.js` - content seed scripts (they delete existing content and require `--yes`)
+- `scripts/smokeTest.js` - `npm run smoke-test`: end-to-end check of the main features against the practice database
+- `scripts/updateDbPassword.js` - `npm run update-db-password`: apply a new Atlas password locally and prepare the Render values
+- `scripts/fixDuplicateProgress.js` - `npm run fix:duplicate-progress`: one-off cleanup of duplicate progress records
 
-## Step 4: Start the Backend Server
-```bash
-node server.js
-```
+Local development uses the practice database `prodify_dev`; the live site uses `test`.
 
-## Step 5: Test the System
-1. Start your React app: `npm run dev`
-2. Go to the Planner section
-3. Click "Test Notification" button
-4. Check your email inbox
+## Email
 
-## Troubleshooting
-- Make sure both frontend and backend are running
-- Check console for error messages
-- Verify Gmail app password is correct
-- Ensure CORS is properly configured
+OTP codes and planner reminders are sent through Brevo's HTTP API, because Render's free tier blocks SMTP ports. Set `BREVO_API_KEY` and `EMAIL_USER` (a sender verified in Brevo). Locally, without a key, emails are printed to the console instead.
 
-## Features
-- ✅ Real email notifications
-- ✅ Beautiful HTML email templates
-- ✅ Task deadline reminders
-- ✅ Test notification system
-- ✅ Browser notifications 
+`/api/send-email` only sends to the signed-in user's own address, so it can't be used to email anyone else.
+
+## Security Notes
+
+- Secrets come only from environment variables. The server won't start without `MONGODB_URI` and `JWT_SECRET`; without `BREVO_API_KEY` it runs but can't send email in production.
+- Topic, MCQ and interview-question changes require an account listed in `ADMIN_EMAILS`.
+- Updates only accept known fields (tasks, profile, content), so clients can't set fields such as `userId`.
+- Rate limits: 10 failed sign-in/OTP checks per email per 15 minutes; 5 OTP emails per email and 50 per IP per hour; an OTP stops working after 5 wrong guesses; 600 requests per user per 5 minutes; 30 code runs per user per minute; 20 reminder emails per user per hour. Counters are kept in memory: they reset on restart and aren't shared between instances (use a Redis store if you run several).
+- Uploaded profile pictures are limited to JPEG, PNG, WebP and GIF, and the file extension comes from the checked type.

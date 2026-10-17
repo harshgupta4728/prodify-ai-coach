@@ -83,7 +83,7 @@ const problemBankSchema = new mongoose.Schema({
 
 // Indexes for efficient queries
 problemBankSchema.index({ topics: 1, difficulty: 1 });
-problemBankSchema.index({ problemId: 1 });
+// problemId already has an index from `unique: true`
 problemBankSchema.index({ orderInTopic: 1 });
 
 module.exports = mongoose.model('ProblemBank', problemBankSchema); 
