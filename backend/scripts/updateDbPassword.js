@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const readline = require('readline/promises');
+const readline = require('readline');
 const mongoose = require('mongoose');
 
 const envPath = path.join(__dirname, '..', '.env');
@@ -19,6 +19,23 @@ const renderValuesPath = path.join(__dirname, '..', '..', 'local-only', 'RENDER-
 // original connection string had no database name). Local development uses its own.
 const PRODUCTION_DB = 'test';
 const URI_PATTERN = /^(mongodb(?:\+srv)?:\/\/)([^:@/]+):([^@]*)@([^/]+)\/([^?]*)(\?.*)?$/;
+
+// Questions answered from a queue of typed/pasted lines, so answers that arrive together
+// (pasting two lines, or piped input) are not lost
+const createPrompt = () => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const lines = [];
+  const waiting = [];
+  rl.on('line', (line) => (waiting.length > 0 ? waiting.shift()(line) : lines.push(line)));
+  rl.on('close', () => waiting.splice(0).forEach((resolve) => resolve('')));
+  return {
+    ask(question) {
+      process.stdout.write(question);
+      return lines.length > 0 ? Promise.resolve(lines.shift()) : new Promise((resolve) => waiting.push(resolve));
+    },
+    close: () => rl.close(),
+  };
+};
 
 const getVar = (env, name) => (env.match(new RegExp(`^${name}=(.*)$`, 'm')) || [])[1];
 const setVar = (env, name, value) => {
@@ -55,13 +72,13 @@ async function main() {
   }
   const [, scheme, user, , hosts, localDb, query = ''] = match;
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const password = (await rl.question(`New Atlas password for database user "${decodeURIComponent(user)}": `)).trim();
+  const prompt = createPrompt();
+  const password = (await prompt.ask(`New Atlas password for database user "${decodeURIComponent(user)}": `)).trim();
   const currentAdmins = getVar(env, 'ADMIN_EMAILS') || '';
-  const adminAnswer = (await rl.question(
+  const adminAnswer = (await prompt.ask(
     `Email you log in to Prodify with (gets admin access)${currentAdmins ? ` [${currentAdmins}]` : ''}: `
   )).trim().toLowerCase();
-  rl.close();
+  prompt.close();
 
   if (!password) {
     console.error('No password entered. Nothing was changed.');
