@@ -4,24 +4,26 @@ const Problem = require('../models/Problem');
 const ProblemBank = require('../models/ProblemBank');
 const TodaysProblemBank = require('../models/TodaysProblemBank');
 const auth = require('../middleware/auth');
+const { firstTooLong, isNonEmptyString, toBoundedInt } = require('../lib/validate');
 
 const router = express.Router();
+
+const SUBMISSION_LIMITS = { code: 50000, solution: 50000, notes: 5000, title: 300, problemUrl: 2048 };
+// Topic slugs and subtopic ids become keys in the progress document
+const KEY_PATTERN = /^[\w-]{1,100}$/;
+const MAX_TRACKED_KEYS = 200;
+const MAX_ARTICLES_READ = 2000;
+
+const pagination = (query) => ({
+  page: toBoundedInt(query.page, { min: 1, max: 10000, fallback: 1 }),
+  limit: toBoundedInt(query.limit, { min: 1, max: 100, fallback: 10 })
+});
 
 // Get user's progress
 router.get('/', auth, async (req, res) => {
   try {
-    let progress = await Progress.findOne({ userId: req.user._id });
-    
-    if (!progress) {
-      // Create new progress record for user
-      progress = new Progress({
-        userId: req.user._id,
-        currentStreak: 0,
-        totalProblemsSolved: 0,
-        currentRating: 1200
-      });
-      await progress.save();
-    }
+    // Created with defaults (streak 0, rating 1200) the first time
+    const progress = await Progress.forUser(req.user._id);
 
     // Get recent problems solved
     const recentProblems = await Problem.find({ 
@@ -101,6 +103,21 @@ router.post('/problem', auth, async (req, res) => {
       rating
     } = req.body;
 
+    if (!isNonEmptyString(problemId, 100) || !Array.isArray(topics)) {
+      return res.status(400).json({ error: 'problemId and a topics array are required.' });
+    }
+    const tooLong = firstTooLong({ code, notes, title, problemUrl }, SUBMISSION_LIMITS);
+    if (tooLong) {
+      return res.status(400).json({ error: `${tooLong} is too long.` });
+    }
+
+    // Must be checked before the new submission is saved, or it always finds that one
+    const isFirstTimeSolving = !(await Problem.exists({
+      userId: req.user._id,
+      platform,
+      problemId
+    }));
+
     // Allow multiple submissions for the same problem
     // No need to check if already exists - just create a new submission
 
@@ -132,17 +149,7 @@ router.post('/problem', auth, async (req, res) => {
     await problem.save();
 
     // Update progress
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
-    }
-
-    // Check if this is the first time solving this problem (before creating new record)
-    const isFirstTimeSolving = !(await Problem.findOne({
-      userId: req.user._id,
-      platform,
-      problemId
-    }));
+    const progress = await Progress.forUser(req.user._id);
 
     // Only update progress stats if this is the first time solving this problem
     if (isFirstTimeSolving) {
@@ -338,10 +345,7 @@ router.put('/goals', auth, async (req, res) => {
   try {
     const { dailyGoal, weeklyGoal } = req.body;
     
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
-    }
+    const progress = await Progress.forUser(req.user._id);
 
     if (dailyGoal !== undefined) progress.dailyGoal = dailyGoal;
     if (weeklyGoal !== undefined) progress.weeklyGoal = weeklyGoal;
@@ -362,8 +366,9 @@ router.put('/goals', auth, async (req, res) => {
 // Get user's solved problems
 router.get('/problems', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 10, topic, difficulty, platform } = req.query;
-    
+    const { topic, difficulty, platform } = req.query;
+    const { page, limit } = pagination(req.query);
+
     const filter = { userId: req.user._id, status: 'solved' };
     
     if (topic) filter.topics = topic;
@@ -393,8 +398,9 @@ router.get('/problems', auth, async (req, res) => {
 // Get problems from problem bank
 router.get('/problem-bank', auth, async (req, res) => {
   try {
-    const { topic, difficulty, page = 1, limit = 10 } = req.query;
-    
+    const { topic, difficulty } = req.query;
+    const { page, limit } = pagination(req.query);
+
     const filter = {};
     if (topic) filter.topics = topic;
     if (difficulty) filter.difficulty = difficulty;
@@ -495,6 +501,14 @@ router.post('/mark-solved', auth, async (req, res) => {
   try {
     const { problemId, solution, language, timeSpent, notes } = req.body;
 
+    if (!isNonEmptyString(problemId, 100)) {
+      return res.status(400).json({ error: 'problemId is required.' });
+    }
+    const tooLong = firstTooLong({ solution, notes }, SUBMISSION_LIMITS);
+    if (tooLong) {
+      return res.status(400).json({ error: `${tooLong} is too long.` });
+    }
+
     // Check if this is a today's problem
     const isTodaysProblem = problemId.startsWith('TODAY_');
     
@@ -510,6 +524,12 @@ router.post('/mark-solved', auth, async (req, res) => {
     if (!problemBank) {
       return res.status(404).json({ error: 'Problem not found in problem bank.' });
     }
+
+    // Must be checked before the new submission is saved, or it always finds that one
+    const isFirstTimeSolving = !(await Problem.exists({
+      userId: req.user._id,
+      problemId: problemId
+    }));
 
     // Allow multiple submissions for the same problem
     // No need to check if already solved - just create a new submission
@@ -536,16 +556,7 @@ router.post('/mark-solved', auth, async (req, res) => {
     await solvedProblem.save();
 
     // Update progress
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
-    }
-
-    // Check if this is the first time solving this problem (before creating new record)
-    const isFirstTimeSolving = !(await Problem.findOne({
-      userId: req.user._id,
-      problemId: problemId
-    }));
+    const progress = await Progress.forUser(req.user._id);
 
     // Only update progress stats if this is the first time solving this problem
     if (isFirstTimeSolving) {
@@ -624,10 +635,7 @@ router.delete('/reset', auth, async (req, res) => {
     await Problem.deleteMany({ userId: req.user._id });
     
     // Reset progress to initial state
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
-    }
+    const progress = await Progress.forUser(req.user._id);
     
     // Reset ALL progress fields including streak
     progress.currentStreak = 0;
@@ -674,21 +682,8 @@ router.delete('/reset', auth, async (req, res) => {
 // Get today's problem
 router.get('/todays-problem', auth, async (req, res) => {
   try {
-    let progress = await Progress.findOne({ userId: req.user._id });
-    
-    if (!progress) {
-      // Create new progress record for user
-      progress = new Progress({
-        userId: req.user._id,
-        currentStreak: 0,
-        todaysProblemStreak: 0,
-        longestStreak: 0,
-        longestTodaysProblemStreak: 0,
-        totalProblemsSolved: 0,
-        currentRating: 1200
-      });
-      await progress.save();
-    }
+    // Created with defaults (streaks 0, rating 1200) the first time
+    const progress = await Progress.forUser(req.user._id);
 
     // Get today's date for consistent daily problem selection
     const today = new Date();
@@ -698,16 +693,16 @@ router.get('/todays-problem', auth, async (req, res) => {
     // Create a unique seed for today using year and day of year
     const todaySeed = year * 1000 + dayOfYear;
     
-    // Get all problems from ProblemBank (main problem bank)
-    const allProblems = await ProblemBank.find({});
-    
-    if (allProblems.length === 0) {
+    const problemCount = await ProblemBank.countDocuments();
+
+    if (problemCount === 0) {
       return res.status(404).json({ message: 'No problems available in problem bank' });
     }
 
-    // Use today's seed to consistently select the same problem for everyone today
-    const randomIndex = todaySeed % allProblems.length;
-    const todaysProblem = allProblems[randomIndex];
+    // Use today's seed to consistently select the same problem for everyone today.
+    // Fetches just that one problem instead of loading the whole bank on every request.
+    // No sort on purpose: natural order matches the old find({}) list, so the rotation is unchanged.
+    const todaysProblem = await ProblemBank.findOne().skip(todaySeed % problemCount);
     
     if (!todaysProblem) {
       return res.status(404).json({ message: 'Today\'s problem not found' });
@@ -777,6 +772,14 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
   try {
     const { problemId, solution, language, timeSpent, notes } = req.body;
 
+    if (!isNonEmptyString(problemId, 100)) {
+      return res.status(400).json({ error: 'problemId is required.' });
+    }
+    const tooLong = firstTooLong({ solution, notes }, SUBMISSION_LIMITS);
+    if (tooLong) {
+      return res.status(400).json({ error: `${tooLong} is too long.` });
+    }
+
     // Get today's problem from ProblemBank (main problem bank)
     const todaysProblem = await ProblemBank.findOne({ problemId });
     
@@ -822,10 +825,7 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
     await solvedProblem.save();
 
     // Update progress
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
-    }
+    const progress = await Progress.forUser(req.user._id);
 
     // For today's problems, we only count the first submission of the day
     // The existingProblem check above already ensures this is the first submission today
@@ -917,10 +917,16 @@ router.post('/quiz-score', auth, async (req, res) => {
     if (!topicSlug || score === undefined || !totalQuestions) {
       return res.status(400).json({ error: 'topicSlug, score, and totalQuestions are required.' });
     }
+    if (typeof topicSlug !== 'string' || !KEY_PATTERN.test(topicSlug) ||
+        !Number.isInteger(score) || !Number.isInteger(totalQuestions) ||
+        score < 0 || totalQuestions < 1 || totalQuestions > 1000 || score > totalQuestions) {
+      return res.status(400).json({ error: 'Invalid quiz score.' });
+    }
 
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
+    const progress = await Progress.forUser(req.user._id);
+
+    if (!progress.quizScores.has(topicSlug) && progress.quizScores.size >= MAX_TRACKED_KEYS) {
+      return res.status(400).json({ error: 'Too many quiz topics tracked.' });
     }
 
     const existing = progress.quizScores.get(topicSlug);
@@ -947,17 +953,18 @@ router.patch('/article-read', auth, async (req, res) => {
     if (!topicSlug || !subtopicId) {
       return res.status(400).json({ error: 'topicSlug and subtopicId are required.' });
     }
-
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
+    if (typeof topicSlug !== 'string' || typeof subtopicId !== 'string' ||
+        !KEY_PATTERN.test(topicSlug) || !KEY_PATTERN.test(subtopicId)) {
+      return res.status(400).json({ error: 'Invalid topicSlug or subtopicId.' });
     }
+
+    const progress = await Progress.forUser(req.user._id);
 
     // Deduplicate
     const alreadyRead = progress.articlesRead.some(
       a => a.topicSlug === topicSlug && a.subtopicId === subtopicId
     );
-    if (!alreadyRead) {
+    if (!alreadyRead && progress.articlesRead.length < MAX_ARTICLES_READ) {
       progress.articlesRead.push({ topicSlug, subtopicId, readAt: new Date() });
       await progress.save();
     }
@@ -976,10 +983,15 @@ router.patch('/interview-viewed', auth, async (req, res) => {
     if (!topicSlug) {
       return res.status(400).json({ error: 'topicSlug is required.' });
     }
+    if (typeof topicSlug !== 'string' || !KEY_PATTERN.test(topicSlug) ||
+        (count !== undefined && (!Number.isInteger(count) || count < 0 || count > 100000))) {
+      return res.status(400).json({ error: 'Invalid topicSlug or count.' });
+    }
 
-    let progress = await Progress.findOne({ userId: req.user._id });
-    if (!progress) {
-      progress = new Progress({ userId: req.user._id });
+    const progress = await Progress.forUser(req.user._id);
+
+    if (!progress.interviewQuestionsViewed.has(topicSlug) && progress.interviewQuestionsViewed.size >= MAX_TRACKED_KEYS) {
+      return res.status(400).json({ error: 'Too many topics tracked.' });
     }
 
     progress.interviewQuestionsViewed.set(topicSlug, count || 0);

@@ -1,5 +1,5 @@
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
+const connectForSeeding = require('../lib/seedConnect');
 const Topic = require('../models/Topic');
 const MCQ = require('../models/MCQ');
 const InterviewQuestion = require('../models/InterviewQuestion');
@@ -15,9 +15,7 @@ const allData = [...topics1, ...topics2, ...topics3, ...topics4, ...topics5];
 
 async function seed() {
   try {
-    const uri = process.env.MONGODB_URI || 'mongodb://harshgupta4728:QZacVUXirg95GKIS@ac-ecwklhy-shard-00-00.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-01.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-02.pafygw3.mongodb.net:27017/?ssl=true&replicaSet=atlas-f082mj-shard-0&authSource=admin&retryWrites=true&w=majority&appName=prodify';
-    await mongoose.connect(uri);
-    console.log('Connected to MongoDB');
+    await connectForSeeding('delete and re-create all topics, MCQs and interview questions');
 
     // Clear existing data
     await Topic.deleteMany({});

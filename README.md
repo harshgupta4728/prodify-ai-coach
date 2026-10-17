@@ -25,7 +25,8 @@ Prodify AI Coach is a full-stack web application designed to help students and d
 - **MongoDB** with Mongoose ODM
 - **JWT** for authentication
 - **bcryptjs** for password hashing
-- **Nodemailer** for email notifications
+- **Brevo** HTTP API for OTP and reminder emails
+- **Helmet** and **express-rate-limit** for security headers and rate limiting
 - **CORS** for cross-origin requests
 
 ## ✨ Features
@@ -71,7 +72,7 @@ Prodify AI Coach is a full-stack web application designed to help students and d
 ### 📧 Communication
 - ✅ Email notifications system
 - ✅ Task reminders via email
-- ✅ Gmail SMTP integration
+- ✅ Brevo email API integration
 - ✅ Automated email sending
 
 ### 🔧 Development Features
@@ -84,9 +85,9 @@ Prodify AI Coach is a full-stack web application designed to help students and d
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn
-- MongoDB (local or cloud)
+- Node.js 24 (LTS)
+- npm
+- MongoDB Atlas (or a local MongoDB)
 
 ### Installation
 
@@ -109,38 +110,31 @@ Prodify AI Coach is a full-stack web application designed to help students and d
    ```
 
 4. **Set up environment variables**
-   Create `.env` files in both root and backend directories:
-   
-   **Root `.env`:**
-   ```env
-   VITE_API_URL=http://localhost:3001/api
-   ```
-   
-   **Backend `.env`:**
-   ```env
-   MONGODB_URI=MONGODB_URI=mongodb+srv://harshgupta4728:harshgupta4728@prodify.pafygw3.mongodb.net/?retryWrites=true&w=majority&appName=prodify
 
-   JWT_SECRET=your_jwt_secret_here
-   EMAIL_USER=your_email@gmail.com
-   EMAIL_PASS=your_app_password
-   PORT=3001
+   Copy the templates and fill them in. The copies are git-ignored; never commit them.
+   ```bash
+   cp .env.example .env.local            # frontend: VITE_API_BASE_URL only (public)
+   cp backend/.env.example backend/.env  # backend: MONGODB_URI, JWT_SECRET, ...
    ```
+   `backend/.env` needs at least `MONGODB_URI` and `JWT_SECRET`; the backend refuses to start without them.
+   Without `BREVO_API_KEY`, OTP emails are printed in the backend terminal instead of sent, so sign-up still
+   works locally. Add your account's email to `ADMIN_EMAILS` to see the admin panel. See [SETUP_GUIDE.md](SETUP_GUIDE.md).
 
 5. **Start the development servers**
-   
-   **Terminal 1 - Backend:**
+
+   **Terminal 1 - Backend** (runs on `http://localhost:10000`):
    ```bash
    cd backend
    npm run dev
    ```
-   
+
    **Terminal 2 - Frontend:**
    ```bash
    npm run dev
    ```
 
 6. **Open your browser**
-   Navigate to `http://localhost:5173`
+   Navigate to `http://localhost:8080`
 
 ## 📁 Project Structure
 
@@ -158,10 +152,12 @@ prodify-ai-coach/
 ├── backend/               # Backend source code
 │   ├── models/            # MongoDB models
 │   ├── routes/            # API routes
-│   ├── middleware/        # Express middleware
+│   ├── middleware/        # Auth, rate limits, input sanitizing
+│   ├── lib/               # Config (env vars), mailer, validation helpers
+│   ├── seed/              # Content seed data
+│   ├── scripts/           # Maintenance scripts
 │   └── server.js          # Main server file
-├── public/                # Public assets
-└── docs/                  # Documentation
+└── public/                # Public assets
 ```
 
 ## 🔧 Development
@@ -169,32 +165,28 @@ prodify-ai-coach/
 ### Available Scripts
 
 **Frontend:**
-- `npm run dev` - Start development server
+- `npm run dev` - Start development server (http://localhost:8080)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-**Backend:**
-- `npm run dev` - Start development server with nodemon
+**Backend** (in `backend/`):
+- `npm run dev` - Start development server with nodemon (http://localhost:10000)
 - `npm start` - Start production server
+- `npm run smoke-test` - Check that the main features still work (uses the practice database; prints ✓/✗ per step)
+- `npm run update-db-password` - After changing the database password in Atlas: updates `backend/.env` and prepares the values for Render
+- `npm run seed:topics -- --yes`, `seed:problems`, `seed:todays-problems` - Reload content (deletes the existing content first)
+- `npm run fix:duplicate-progress` - Find duplicate progress records (`-- --live` for the live database, `--yes` to remove them)
 
 ### Code Style
 - ESLint configuration for code quality
 - TypeScript for type safety
-- Consistent code formatting
+- CI (GitHub Actions) runs lint, type check, build, and a dependency audit on every push and pull request
 
 ## 🚀 Deployment
 
-### Manual Deployment
-1. Build the frontend: `npm run build`
-2. Deploy the backend to your preferred hosting service (Heroku, Railway, etc.)
-3. Update environment variables for production
-4. Set up MongoDB Atlas for database
-
-### Deployment Options
-- **Frontend**: Vercel, Netlify, GitHub Pages
-- **Backend**: Heroku, Railway, DigitalOcean
-- **Database**: MongoDB Atlas
+The frontend and backend are deployed on Render with MongoDB Atlas as the database.
+See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for environment variables and the production checklist.
 
 ## 🤝 Contributing
 

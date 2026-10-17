@@ -1,12 +1,17 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
+const config = require('../lib/config');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 // Judge0 CE API via RapidAPI (free tier: 50 req/day)
 // If JUDGE0_API_KEY is set, use Judge0. Otherwise, fall back to Wandbox (free, no key).
-const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY;
+const JUDGE0_API_KEY = config.judge0ApiKey;
+
+// Give up on a stuck compiler service instead of holding the request open
+// (Java and Rust compiles alone can take 10+ seconds)
+const UPSTREAM_TIMEOUT_MS = 30000;
 
 // Judge0 language IDs
 const JUDGE0_LANG_IDS = {
@@ -35,10 +40,9 @@ const SUPPORTED_LANGUAGES = Object.keys(WANDBOX_COMPILERS);
 // Rate limit: 30 requests per minute per user
 const codeLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
-  keyGenerator: (req) => req.user?._id?.toString() || 'anonymous',
+  limit: 30,
+  keyGenerator: (req) => req.user._id.toString(),
   message: { success: false, error: 'Too many code execution requests. Please wait a moment.' },
-  validate: { xForwardedForHeader: false },
 });
 
 // Execute via Judge0 CE (RapidAPI)
@@ -58,6 +62,7 @@ async function executeViaJudge0(language, code, stdin) {
         source_code: code,
         stdin: stdin || '',
       }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     }
   );
 
@@ -105,6 +110,7 @@ async function executeViaWandbox(language, code, stdin) {
       'compiler-option-raw': '',
       'runtime-option-raw': '',
     }),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -156,6 +162,10 @@ router.post('/execute', auth, codeLimiter, async (req, res) => {
 
     if (code.length > 50000) {
       return res.status(400).json({ success: false, error: 'Code exceeds maximum size (50KB).' });
+    }
+
+    if (stdin != null && (typeof stdin !== 'string' || stdin.length > 10000)) {
+      return res.status(400).json({ success: false, error: 'Input (stdin) must be text of at most 10KB.' });
     }
 
     // Java fix: online compilers save files as prog.java, but Java requires

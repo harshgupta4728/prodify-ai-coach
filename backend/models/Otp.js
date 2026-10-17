@@ -17,12 +17,19 @@ const otpSchema = new mongoose.Schema({
     enum: ['signup', 'signin'],
     required: true,
   },
+  // Wrong guesses so far; the code stops working after 5
+  attempts: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
     expires: 300, // Auto-delete after 5 minutes
   },
 });
+
+otpSchema.index({ email: 1, purpose: 1 });
 
 // Hash OTP before saving
 otpSchema.pre('save', async function (next) {

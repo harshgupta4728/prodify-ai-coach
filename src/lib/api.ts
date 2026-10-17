@@ -2,6 +2,9 @@ import { config } from './config';
 
 const API_BASE_URL = config.apiBaseUrl;
 
+// Fired when the server rejects the saved token (expired or revoked session)
+export const SESSION_EXPIRED_EVENT = 'prodify:session-expired';
+
 export interface User {
   _id: string;
   name: string;
@@ -15,6 +18,8 @@ export interface User {
   profilePicture?: string;
   createdAt: string;
   lastLogin: string;
+  // Set by the server from ADMIN_EMAILS; the server enforces it on every content change
+  isAdmin?: boolean;
 }
 
 export interface AuthResponse {
@@ -67,10 +72,7 @@ class ApiService {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
-    console.log('Making request to:', url);
-    console.log('Request options:', options);
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -87,18 +89,18 @@ class ApiService {
         headers,
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('API Error:', errorData);
+        console.error('API Error:', response.status, errorData.error);
+        // The saved session is no longer valid: sign out instead of failing every request
+        if (response.status === 401 && token) {
+          this.clearToken();
+          window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+        }
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('Response data:', data);
-      return data;
+      return await response.json();
     } catch (error) {
       console.error('Request failed:', error);
       throw error;
@@ -264,17 +266,12 @@ class ApiService {
     return this.request<any>(`/progress/problem-submissions/${problemId}`);
   }
 
-  async sendEmailNotification(data: { to: string; subject: string; body: string }): Promise<any> {
-    console.log('📤 API: sendEmailNotification called with data:', data);
-    console.log('📧 Email will be sent TO:', data.to);
-    
-    const result = await this.request<any>('/send-email', {
+  // Always delivered to the signed-in user's own email address
+  async sendEmailNotification(data: { subject: string; body: string }): Promise<any> {
+    return this.request<any>('/send-email', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    
-    console.log('📬 API: Email notification result:', result);
-    return result;
   }
 
   // Task-related API methods

@@ -1,15 +1,18 @@
-require('dotenv').config();
+// Must load first: validates environment variables and exits if a secret is missing
+const config = require('./lib/config');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
-
-// Set default JWT_SECRET if not provided
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = '7330048cc03ef1ed6e501a74eb93728ea08c33bab53e0ac5cfdb1d1f2667d2d3';
-  console.log('Warning: Using default JWT_SECRET. Please set JWT_SECRET in your .env file for production.');
-}
+const auth = require('./middleware/auth');
+const sanitize = require('./middleware/sanitize');
+const { emailPerUser } = require('./middleware/rateLimiters');
+const { escapeHtml } = require('./lib/validate');
+const transporter = require('./lib/mailer');
+const Progress = require('./models/Progress');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -19,52 +22,25 @@ const topicRoutes = require('./routes/topics');
 const codeRoutes = require('./routes/code');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+
+// Render's proxies sit in front of the app; this decides what req.ip (used for rate limits) is
+app.set('trust proxy', config.trustProxy);
 
 // Middleware
-app.use(cors({
-  origin: [
-    'https://prodify-ai-coach-frontend.onrender.com',
-    'http://localhost:8080',
-    'http://localhost:5173',
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:5173'
-  ],
-  credentials: true
+app.use(helmet({
+  // The frontend is on another origin and shows profile pictures from /uploads
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cors({ origin: config.clientOrigins }));
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
+app.use(sanitize);
 
-// Ensure uploads directory exists
+// Profile pictures. Note: Render's disk is wiped on every deploy and restart, so these
+// need object storage (Cloudinary, S3, R2) before launch.
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('Created uploads directory:', uploadsDir);
-}
-
-// Serve static files from uploads directory
-app.use('/uploads', express.static(uploadsDir));
-console.log('Static files served from:', uploadsDir);
-
-// Connect to MongoDB
-const connectDB = async () => {
-  try {
-    // Direct connection string (bypasses SRV DNS lookup for restricted networks)
-    const defaultUri = 'mongodb://harshgupta4728:QZacVUXirg95GKIS@ac-ecwklhy-shard-00-00.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-01.pafygw3.mongodb.net:27017,ac-ecwklhy-shard-00-02.pafygw3.mongodb.net:27017/?ssl=true&replicaSet=atlas-f082mj-shard-0&authSource=admin&retryWrites=true&w=majority&appName=prodify';
-    const conn = await mongoose.connect(process.env.MONGODB_URI || defaultUri);
-    
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-    console.log(`Database: ${conn.connection.name}`);
-  } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    process.exit(1);
-  }
-};
-
-connectDB();
-
-// Shared email transporter
-const transporter = require('./lib/mailer');
+fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir, { index: false, dotfiles: 'deny' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -73,40 +49,33 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/topics', topicRoutes);
 app.use('/api/code', codeRoutes);
 
-// Email sending endpoint
-app.post('/api/send-email', async (req, res) => {
-  try {
-    const { to, subject, body } = req.body;
-    
-    console.log('=== BACKEND EMAIL DEBUG ===');
-    console.log('📨 Received email request:', { to, subject, bodyLength: body?.length });
-    console.log('📧 Email will be sent TO:', to);
-    console.log('📤 Email will be sent FROM:', process.env.EMAIL_USER || 'harshgupta4728@gmail.com');
-    
-    const mailOptions = {
-      from: process.env.EMAIL_USER || 'harshgupta4728@gmail.com',
-      to: to,
-      subject: subject,
-      html: body
-    };
+// Planner reminder emails. Always sent to the signed-in user's own address, so the
+// endpoint can't be used to send mail to anyone else.
+app.post('/api/send-email', auth, emailPerUser, async (req, res) => {
+  const { subject, body } = req.body;
 
-    console.log('📋 Mail options:', mailOptions);
-    
-    const info = await transporter.sendMail(mailOptions);
-    
-    console.log('✅ Email sent successfully!');
-    console.log('📬 Message ID:', info.messageId);
-    console.log('📧 Recipient:', to);
-    console.log('=== END BACKEND EMAIL DEBUG ===');
-    
+  if (!subject || !body || typeof subject !== 'string' || typeof body !== 'string' ||
+      subject.length > 200 || body.length > 5000) {
+    return res.status(400).json({
+      success: false,
+      error: 'Subject (up to 200 characters) and body (up to 5000 characters) are required.'
+    });
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      to: req.user.email,
+      subject,
+      html: `<div style="font-family: Arial, sans-serif; white-space: pre-wrap;">${escapeHtml(body)}</div>`
+    });
+
     res.json({
       success: true,
       messageId: info.messageId,
       message: 'Email sent successfully'
     });
-    
   } catch (error) {
-    console.error('❌ Email sending error:', error);
+    console.error('Email sending error:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to send email'
@@ -116,48 +85,65 @@ app.post('/api/send-email', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  
-  res.json({ 
-    status: 'OK', 
+
+  res.json({
+    status: 'OK',
     message: 'Prodify AI Coach Backend is running',
     database: dbStatus,
+    // The caller's own IP as the server sees it, and the proxy chain it came through,
+    // for checking TRUST_PROXY
+    clientIp: req.ip,
+    forwardedFor: req.headers['x-forwarded-for'] || null,
     timestamp: new Date().toISOString()
   });
 });
 
-// Test endpoint
-app.post('/api/test', (req, res) => {
-  console.log('Test endpoint called with body:', req.body);
-  res.json({ 
-    message: 'Test endpoint working',
-    body: req.body
-  });
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found.' });
 });
 
-// Upload test endpoint
-app.get('/api/upload-test', (req, res) => {
-  const uploadsDir = path.join(__dirname, 'uploads');
-  res.json({
-    message: 'Upload test endpoint',
-    uploadsDir: uploadsDir,
-    uploadsExists: fs.existsSync(uploadsDir),
-    uploadsWritable: (() => {
-      try {
-        const testFile = path.join(uploadsDir, 'test.txt');
-        fs.writeFileSync(testFile, 'test');
-        fs.unlinkSync(testFile);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    })()
-  });
+// Last-resort error handler: full details go to the logs, never to the client
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON in request body.' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body is too large.' });
+  }
+  if (err.name === 'ValidationError' || err.name === 'CastError') {
+    return res.status(400).json({ error: 'Invalid request data.' });
+  }
+  console.error(`${req.method} ${req.originalUrl} failed:`, err);
+  res.status(500).json({ error: 'Server error.' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-}); 
+const start = async () => {
+  try {
+    const conn = await mongoose.connect(config.mongoUri);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`Database: ${conn.connection.name}`);
+    await Progress.ensureUniqueUserIndex();
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    process.exit(1);
+  }
+
+  const server = app.listen(config.port, () => {
+    console.log(`Server running on port ${config.port}`);
+    console.log(`Health check: http://localhost:${config.port}/api/health`);
+  });
+
+  // Render sends SIGTERM before replacing an instance: finish open requests, then exit
+  const shutdown = () => {
+    server.close(async () => {
+      await mongoose.connection.close();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+};
+
+start();

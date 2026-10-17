@@ -208,7 +208,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const handleSendSignupOtp = async (e: React.FormEvent) => {
     e.preventDefault(); setError("");
     if (signupData.password !== signupData.confirmPassword) { setError("Passwords do not match."); return; }
-    if (signupData.password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (signupData.password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setIsLoading(true);
     try {
       await apiService.sendOtp({ email: signupData.email, purpose: "signup" });
@@ -481,7 +481,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
                         <div className="space-y-1.5">
                           <Label htmlFor="signup-password">Password</Label>
                           <div className="relative group"><Lock className="input-icon" />
-                            <Input id="signup-password" type="password" placeholder="Min 6 chars" className="auth-input"
+                            <Input id="signup-password" type="password" placeholder="Min 8 chars" className="auth-input"
                               value={signupData.password} onChange={(e) => setSignupData({ ...signupData, password: e.target.value })} required disabled={isLoading} />
                           </div>
                         </div>

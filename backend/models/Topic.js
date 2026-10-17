@@ -33,7 +33,7 @@ const topicSchema = new mongoose.Schema({
   timestamps: true
 });
 
-topicSchema.index({ slug: 1 });
+// slug already has an index from `unique: true`
 topicSchema.index({ order: 1 });
 
 module.exports = mongoose.model('Topic', topicSchema);

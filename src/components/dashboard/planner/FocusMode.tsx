@@ -29,7 +29,9 @@ const loadPomodoroSettings = (): PomodoroSettings => {
   try {
     const saved = localStorage.getItem("prodify-pomodoro");
     if (saved) return JSON.parse(saved);
-  } catch {}
+  } catch {
+    // Fall back to defaults if saved settings are unreadable
+  }
   return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4 };
 };
 
@@ -40,7 +42,9 @@ const loadSoundEnabled = (): boolean => {
       const s = JSON.parse(saved);
       return s.master !== false;
     }
-  } catch {}
+  } catch {
+    // Fall back to sound on if saved settings are unreadable
+  }
   return true;
 };
 
@@ -68,7 +72,9 @@ export const FocusMode = ({ task, onStop, onComplete, onClose }: FocusModeProps)
       gain.gain.value = 0.3;
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
-    } catch {}
+    } catch {
+      // Audio can be unavailable (autoplay rules, no audio device)
+    }
   }, []);
 
   useEffect(() => {

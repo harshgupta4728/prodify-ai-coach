@@ -3,18 +3,26 @@ services:
     name: prodify-ai-coach-backend
     env: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      # Secrets: set in the Render dashboard, never in this file
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
       - key: EMAIL_USER
         sync: false
-      - key: EMAIL_PASS
-        sync: false 
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: CLIENT_ORIGINS
+        value: https://prodify-ai-coach-frontend.onrender.com

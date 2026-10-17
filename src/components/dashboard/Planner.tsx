@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Plus, Edit, Trash2, CheckCircle, Clock, AlertCircle, CalendarDays, Target, BookOpen, Code, Bell, Mail, Play, Sparkles, LayoutGrid, List, CalendarRange, Timer, Link2, Tag, ListChecks, X, Square, CheckSquare, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, safeExternalUrl } from "@/lib/utils";
 import { sendNotification } from "@/lib/notification-utils";
 import { apiService } from "@/lib/api";
 import { FocusMode } from "./planner/FocusMode";
@@ -277,8 +277,8 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     const task = tasks.find(t => t._id === taskId);
     if (!task) return;
 
-    // If moving from done to another status
-    if (task.completed && newStatus !== 'done') {
+    // If moving from done to another status ('done' already returned above)
+    if (task.completed) {
       await markTaskIncomplete(taskId);
       // Then update status
       await updateTask(taskId, { status: newStatus } as any);
@@ -779,7 +779,15 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 };
 
 // ============ Quick Templates ============
-const QUICK_TEMPLATES = [
+const QUICK_TEMPLATES: Array<{
+  emoji: string;
+  label: string;
+  title: string;
+  category: Task['category'];
+  priority: Task['priority'];
+  estimatedTime: number;
+  description: string;
+}> = [
   { emoji: '📖', label: 'DSA Practice', title: 'Solve DSA Problems', category: 'practice', priority: 'high', estimatedTime: 60, description: 'Practice data structures and algorithms problems' },
   { emoji: '🎯', label: 'Mock Interview', title: 'Mock Interview Prep', category: 'interview', priority: 'urgent', estimatedTime: 90, description: 'Practice mock interview questions and communication' },
   { emoji: '📚', label: 'Study Topic', title: 'Study New Topic', category: 'study', priority: 'medium', estimatedTime: 45, description: 'Learn and understand a new concept' },
@@ -1136,6 +1144,7 @@ const TaskCard = ({
   const subtasksDone = task.subtasks?.filter(s => s.done).length || 0;
   const subtasksTotal = task.subtasks?.length || 0;
   const subtaskProgress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
+  const resourceUrl = safeExternalUrl(task.link);
 
   return (
     <Card className={cn(
@@ -1295,9 +1304,9 @@ const TaskCard = ({
                     }
                   </div>
 
-                  {task.link && (
+                  {resourceUrl && (
                     <a
-                      href={task.link}
+                      href={resourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-primary hover:underline"

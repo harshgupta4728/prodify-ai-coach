@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Dashboard } from "@/components/dashboard/Dashboard";
-import { apiService, type User } from "@/lib/api";
+import { apiService, SESSION_EXPIRED_EVENT, type User } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 // Apply saved accent color on app load
@@ -26,7 +26,9 @@ function applySavedAccentColor() {
     root.style.setProperty("--shadow-soft", `0 4px 20px hsl(${hsl} / 0.1)`);
     root.style.setProperty("--shadow-medium", `0 8px 30px hsl(${hsl} / 0.15)`);
     root.style.setProperty("--shadow-strong", `0 12px 40px hsl(${hsl} / 0.2)`);
-  } catch {}
+  } catch {
+    // Ignore a malformed saved color and keep the default theme
+  }
 }
 
 const Index = () => {
@@ -60,6 +62,21 @@ const Index = () => {
 
     checkAuth();
   }, []);
+
+  // Any API call rejected with 401 (expired or revoked token) returns to the login screen
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsAuthenticated(false);
+      setUserData(null);
+      toast({
+        title: "Session expired",
+        description: "Please sign in again.",
+      });
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [toast]);
 
   const handleLogin = (user: User) => {
     setUserData(user);
