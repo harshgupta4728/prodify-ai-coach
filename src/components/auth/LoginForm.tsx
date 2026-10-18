@@ -557,6 +557,12 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
           <div className="text-center mt-4 text-xs text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </div>
+          {import.meta.env.DEV && (
+            // Only shown by `npm run dev`: the local backend uses the practice database
+            <p className="text-center mt-2 text-xs text-muted-foreground">
+              Local test copy: accounts here are separate from the live site.
+            </p>
+          )}
         </div>
       </div>
 
