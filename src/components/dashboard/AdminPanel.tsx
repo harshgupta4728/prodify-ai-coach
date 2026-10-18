@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/common/PageHeader";
+import { DifficultyBadge } from "@/components/common/DifficultyBadge";
+import { EmptyState } from "@/components/common/EmptyState";
+import { cn } from "@/lib/utils";
 import { apiService as api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
-  Edit,
+  Pencil,
   Trash2,
   ChevronDown,
   ChevronRight,
@@ -16,6 +26,7 @@ import {
   ArrowLeft,
   Search,
   AlertTriangle,
+  Check,
 } from "lucide-react";
 
 interface AdminPanelProps {
@@ -24,6 +35,97 @@ interface AdminPanelProps {
 
 type Tab = "topics" | "mcqs" | "interview";
 type EditMode = "none" | "topic" | "subtopic" | "mcq" | "interview";
+
+// ---------- Presentational helpers (kept outside the component so inputs keep focus while typing) ----------
+
+// Topics are rated beginner / intermediate / advanced and questions easy / medium / hard;
+// both get the same three difficulty colours
+const LEVEL_TINT: Record<string, string> = {
+  beginner: "bg-success/10 text-success",
+  intermediate: "bg-warning/10 text-warning",
+  advanced: "bg-destructive/10 text-destructive",
+};
+
+const LevelBadge = ({ level }: { level?: string }) => (
+  <DifficultyBadge difficulty={level} className={LEVEL_TINT[(level || "").toLowerCase()]} />
+);
+
+const OVERLAY_CLASS =
+  "fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm";
+
+interface FormModalProps {
+  titleId: string;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+// Centered panel that holds one edit form
+const FormModal = ({ titleId, title, onClose, children }: FormModalProps) => (
+  <div className={OVERLAY_CLASS}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-lg border bg-card p-5 shadow-lg sm:p-6"
+    >
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h3 id={titleId} className="text-lg font-semibold leading-none tracking-tight">
+          {title}
+        </h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+interface FieldProps {
+  id: string;
+  label: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}
+
+// A label above its control
+const Field = ({ id, label, className, children }: FieldProps) => (
+  <div className={cn("space-y-2", className)}>
+    <Label htmlFor={id}>{label}</Label>
+    {children}
+  </div>
+);
+
+// A native <select> drawn like the shadcn Select trigger
+const NativeSelect = ({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+  <div className="relative">
+    <select
+      className={cn(
+        "flex h-10 w-full appearance-none rounded-md border border-input bg-background py-2 pl-3 pr-9 text-sm ring-offset-background focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+    <ChevronDown
+      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50"
+      aria-hidden="true"
+    />
+  </div>
+);
+
+// Cancel + confirm buttons at the bottom of a dialog (stacked on phones, main button on top)
+const DialogActions = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}>{children}</div>
+);
 
 export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const [tab, setTab] = useState<Tab>("topics");
@@ -38,6 +140,13 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const [interviewQs, setInterviewQs] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  // Failed saves and deletes are shown, not just logged
+  const reportError = (action: string, err: unknown) => {
+    console.error(`Failed to ${action}:`, err);
+    toast({ title: `Couldn't ${action}`, description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+  };
 
   useEffect(() => {
     loadTopics();
@@ -95,7 +204,7 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       setEditMode("none");
       setEditData(null);
     } catch (err) {
-      console.error("Failed to save topic:", err);
+      reportError("save the topic", err);
     } finally {
       setSaving(false);
     }
@@ -113,7 +222,7 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       setEditMode("none");
       setEditData(null);
     } catch (err) {
-      console.error("Failed to save MCQ:", err);
+      reportError("save the question", err);
     } finally {
       setSaving(false);
     }
@@ -122,16 +231,18 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const saveInterviewQ = async () => {
     setSaving(true);
     try {
-      if (editData._id) {
-        await api.updateInterviewQuestion(editData._id, editData);
+      // The companies field keeps raw comma-separated text while typing
+      const question = { ...editData, companies: (editData.companies || []).map((c: string) => c.trim()).filter(Boolean) };
+      if (question._id) {
+        await api.updateInterviewQuestion(question._id, question);
       } else {
-        await api.createInterviewQuestion(selectedTopic.slug, editData);
+        await api.createInterviewQuestion(selectedTopic.slug, question);
       }
       await loadTopicContent(selectedTopic.slug);
       setEditMode("none");
       setEditData(null);
     } catch (err) {
-      console.error("Failed to save interview question:", err);
+      reportError("save the interview question", err);
     } finally {
       setSaving(false);
     }
@@ -144,7 +255,7 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       await loadTopics();
       if (selectedTopic?._id === id) setSelectedTopic(null);
     } catch (err) {
-      console.error("Failed to delete:", err);
+      reportError("delete the topic", err);
     }
     setDeleteConfirm(null);
   };
@@ -154,7 +265,7 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       await api.deleteMCQ(id);
       await loadTopicContent(selectedTopic.slug);
     } catch (err) {
-      console.error("Failed to delete MCQ:", err);
+      reportError("delete the question", err);
     }
     setDeleteConfirm(null);
   };
@@ -164,7 +275,7 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       await api.deleteInterviewQuestion(id);
       await loadTopicContent(selectedTopic.slug);
     } catch (err) {
-      console.error("Failed to delete:", err);
+      reportError("delete the interview question", err);
     }
     setDeleteConfirm(null);
   };
@@ -173,122 +284,84 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
     t.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const diffBadge = (d: string) => {
-    const colors: Record<string, string> = {
-      easy: "bg-green-500/20 text-green-400",
-      beginner: "bg-green-500/20 text-green-400",
-      medium: "bg-yellow-500/20 text-yellow-400",
-      intermediate: "bg-yellow-500/20 text-yellow-400",
-      hard: "bg-red-500/20 text-red-400",
-      advanced: "bg-red-500/20 text-red-400",
-    };
-    return (
-      <span
-        className={`px-2 py-0.5 rounded text-xs font-medium ${
-          colors[d] || "bg-gray-500/20 text-gray-400"
-        }`}
-      >
-        {d}
-      </span>
-    );
-  };
-
   // ========== TOPIC EDIT FORM ==========
   const renderTopicForm = () => {
     if (editMode !== "topic" || !editData) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-card rounded-xl border border-border w-full max-w-2xl max-h-[90vh] overflow-auto p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold">
-              {editData._id ? "Edit Topic" : "New Topic"}
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setEditMode("none");
-                setEditData(null);
-              }}
+      <FormModal
+        titleId="admin-topic-form-title"
+        title={editData._id ? "Edit Topic" : "New Topic"}
+        onClose={() => {
+          setEditMode("none");
+          setEditData(null);
+        }}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="admin-topic-name" label="Name">
+              <Input
+                id="admin-topic-name"
+                value={editData.name || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, name: e.target.value })
+                }
+                placeholder="e.g., Arrays"
+              />
+            </Field>
+            <Field id="admin-topic-slug" label="Slug">
+              <Input
+                id="admin-topic-slug"
+                className="font-mono"
+                value={editData.slug || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, slug: e.target.value })
+                }
+                placeholder="e.g., arrays"
+              />
+            </Field>
+            <Field
+              id="admin-topic-icon"
+              label={
+                <>
+                  Icon <span className="font-normal text-muted-foreground">(emoji)</span>
+                </>
+              }
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-4">
+              <Input
+                id="admin-topic-icon"
+                value={editData.icon || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, icon: e.target.value })
+                }
+              />
+            </Field>
+            <Field id="admin-topic-color" label="Color">
+              <Input
+                id="admin-topic-color"
+                value={editData.color || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, color: e.target.value })
+                }
+                placeholder="blue"
+              />
+            </Field>
+            <Field id="admin-topic-difficulty" label="Difficulty">
+              <NativeSelect
+                id="admin-topic-difficulty"
+                value={editData.difficulty || "intermediate"}
+                onChange={(e) =>
+                  setEditData({ ...editData, difficulty: e.target.value })
+                }
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </NativeSelect>
+            </Field>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Name
-                </label>
+              <Field id="admin-topic-hours" label="Estimated Hours">
                 <Input
-                  value={editData.name || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, name: e.target.value })
-                  }
-                  placeholder="e.g., Arrays"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Slug
-                </label>
-                <Input
-                  value={editData.slug || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, slug: e.target.value })
-                  }
-                  placeholder="e.g., arrays"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Icon (emoji)
-                </label>
-                <Input
-                  value={editData.icon || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, icon: e.target.value })
-                  }
-                  placeholder="📊"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Color
-                </label>
-                <Input
-                  value={editData.color || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, color: e.target.value })
-                  }
-                  placeholder="blue"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Difficulty
-                </label>
-                <select
-                  className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
-                  value={editData.difficulty || "intermediate"}
-                  onChange={(e) =>
-                    setEditData({ ...editData, difficulty: e.target.value })
-                  }
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Estimated Hours
-                </label>
-                <Input
+                  id="admin-topic-hours"
                   type="number"
                   value={editData.estimatedHours || 10}
                   onChange={(e) =>
@@ -298,12 +371,10 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
                     })
                   }
                 />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Order
-                </label>
+              </Field>
+              <Field id="admin-topic-order" label="Order">
                 <Input
+                  id="admin-topic-order"
                   type="number"
                   value={editData.order || 0}
                   onChange={(e) =>
@@ -313,39 +384,36 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
                     })
                   }
                 />
-              </div>
+              </Field>
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Description
-              </label>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm min-h-[80px]"
+            <Field id="admin-topic-description" label="Description" className="sm:col-span-2">
+              <Textarea
+                id="admin-topic-description"
                 value={editData.description || ""}
                 onChange={(e) =>
                   setEditData({ ...editData, description: e.target.value })
                 }
                 placeholder="Topic description..."
               />
-            </div>
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditMode("none");
-                  setEditData(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={saveTopic} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? "Saving..." : "Save Topic"}
-              </Button>
-            </div>
+            </Field>
           </div>
+          <DialogActions className="pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditMode("none");
+                setEditData(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={saveTopic} disabled={saving}>
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : "Save Topic"}
+            </Button>
+          </DialogActions>
         </div>
-      </div>
+      </FormModal>
     );
   };
 
@@ -353,120 +421,109 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const renderMCQForm = () => {
     if (editMode !== "mcq" || !editData) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-card rounded-xl border border-border w-full max-w-2xl max-h-[90vh] overflow-auto p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold">
-              {editData._id ? "Edit MCQ" : "New MCQ"}
-            </h3>
+      <FormModal
+        titleId="admin-mcq-form-title"
+        title={editData._id ? "Edit MCQ" : "New MCQ"}
+        onClose={() => {
+          setEditMode("none");
+          setEditData(null);
+        }}
+      >
+        <div className="space-y-4">
+          <Field id="admin-mcq-question" label="Question">
+            <Textarea
+              id="admin-mcq-question"
+              value={editData.question || ""}
+              onChange={(e) =>
+                setEditData({ ...editData, question: e.target.value })
+              }
+            />
+          </Field>
+          <fieldset>
+            <legend className="text-sm font-medium">Options</legend>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Select the circle next to the correct answer.
+            </p>
+            <div className="mt-2 space-y-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="correctIndex"
+                    checked={editData.correctIndex === i}
+                    onChange={() => setEditData({ ...editData, correctIndex: i })}
+                    aria-label={`Mark option ${String.fromCharCode(65 + i)} as correct`}
+                    className="h-4 w-4 shrink-0 accent-primary"
+                  />
+                  <Input
+                    value={editData.options?.[i] || ""}
+                    onChange={(e) => {
+                      const opts = [...(editData.options || ["", "", "", ""])];
+                      opts[i] = e.target.value;
+                      setEditData({ ...editData, options: opts });
+                    }}
+                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                    aria-label={`Option ${String.fromCharCode(65 + i)}`}
+                    className="flex-1"
+                  />
+                </div>
+              ))}
+            </div>
+          </fieldset>
+          <Field id="admin-mcq-explanation" label="Explanation">
+            <Textarea
+              id="admin-mcq-explanation"
+              value={editData.explanation || ""}
+              onChange={(e) =>
+                setEditData({ ...editData, explanation: e.target.value })
+              }
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="admin-mcq-difficulty" label="Difficulty">
+              <NativeSelect
+                id="admin-mcq-difficulty"
+                value={editData.difficulty || "medium"}
+                onChange={(e) =>
+                  setEditData({ ...editData, difficulty: e.target.value })
+                }
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </NativeSelect>
+            </Field>
+            <Field id="admin-mcq-order" label="Order">
+              <Input
+                id="admin-mcq-order"
+                type="number"
+                value={editData.order || 0}
+                onChange={(e) =>
+                  setEditData({
+                    ...editData,
+                    order: parseInt(e.target.value),
+                  })
+                }
+              />
+            </Field>
+          </div>
+          <DialogActions className="pt-2">
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
               onClick={() => {
                 setEditMode("none");
                 setEditData(null);
               }}
             >
-              <X className="h-4 w-4" />
+              Cancel
             </Button>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Question
-              </label>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm min-h-[60px]"
-                value={editData.question || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, question: e.target.value })
-                }
-              />
-            </div>
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name="correctIndex"
-                  checked={editData.correctIndex === i}
-                  onChange={() => setEditData({ ...editData, correctIndex: i })}
-                  className="accent-primary"
-                />
-                <Input
-                  value={editData.options?.[i] || ""}
-                  onChange={(e) => {
-                    const opts = [...(editData.options || ["", "", "", ""])];
-                    opts[i] = e.target.value;
-                    setEditData({ ...editData, options: opts });
-                  }}
-                  placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                  className="flex-1"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Explanation
-              </label>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm min-h-[60px]"
-                value={editData.explanation || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, explanation: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Difficulty
-                </label>
-                <select
-                  className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
-                  value={editData.difficulty || "medium"}
-                  onChange={(e) =>
-                    setEditData({ ...editData, difficulty: e.target.value })
-                  }
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Order
-                </label>
-                <Input
-                  type="number"
-                  value={editData.order || 0}
-                  onChange={(e) =>
-                    setEditData({
-                      ...editData,
-                      order: parseInt(e.target.value),
-                    })
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditMode("none");
-                  setEditData(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={saveMCQ} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? "Saving..." : "Save MCQ"}
-              </Button>
-            </div>
-          </div>
+            <Button onClick={saveMCQ} disabled={saving}>
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : "Save MCQ"}
+            </Button>
+          </DialogActions>
         </div>
-      </div>
+      </FormModal>
     );
   };
 
@@ -474,118 +531,94 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const renderInterviewForm = () => {
     if (editMode !== "interview" || !editData) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-card rounded-xl border border-border w-full max-w-2xl max-h-[90vh] overflow-auto p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold">
-              {editData._id ? "Edit Interview Question" : "New Interview Question"}
-            </h3>
+      <FormModal
+        titleId="admin-iq-form-title"
+        title={editData._id ? "Edit Interview Question" : "New Interview Question"}
+        onClose={() => {
+          setEditMode("none");
+          setEditData(null);
+        }}
+      >
+        <div className="space-y-4">
+          <Field id="admin-iq-question" label="Question">
+            <Textarea
+              id="admin-iq-question"
+              value={editData.question || ""}
+              onChange={(e) =>
+                setEditData({ ...editData, question: e.target.value })
+              }
+            />
+          </Field>
+          <Field id="admin-iq-answer" label="Answer">
+            <Textarea
+              id="admin-iq-answer"
+              className="min-h-[120px]"
+              value={editData.answer || ""}
+              onChange={(e) =>
+                setEditData({ ...editData, answer: e.target.value })
+              }
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="admin-iq-difficulty" label="Difficulty">
+              <NativeSelect
+                id="admin-iq-difficulty"
+                value={editData.difficulty || "medium"}
+                onChange={(e) =>
+                  setEditData({ ...editData, difficulty: e.target.value })
+                }
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </NativeSelect>
+            </Field>
+            <Field id="admin-iq-frequency" label="Frequency">
+              <NativeSelect
+                id="admin-iq-frequency"
+                value={editData.frequency || "medium"}
+                onChange={(e) =>
+                  setEditData({ ...editData, frequency: e.target.value })
+                }
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </NativeSelect>
+            </Field>
+          </div>
+          <Field
+            id="admin-iq-companies"
+            label={
+              <>
+                Companies <span className="font-normal text-muted-foreground">(comma-separated)</span>
+              </>
+            }
+          >
+            <Input
+              id="admin-iq-companies"
+              value={(editData.companies || []).join(",")}
+              onChange={(e) => setEditData({ ...editData, companies: e.target.value.split(",") })}
+              placeholder="Google, Amazon, Microsoft"
+            />
+          </Field>
+          <DialogActions className="pt-2">
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
               onClick={() => {
                 setEditMode("none");
                 setEditData(null);
               }}
             >
-              <X className="h-4 w-4" />
+              Cancel
             </Button>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Question
-              </label>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm min-h-[60px]"
-                value={editData.question || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, question: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Answer
-              </label>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm min-h-[100px]"
-                value={editData.answer || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, answer: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Difficulty
-                </label>
-                <select
-                  className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
-                  value={editData.difficulty || "medium"}
-                  onChange={(e) =>
-                    setEditData({ ...editData, difficulty: e.target.value })
-                  }
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Frequency
-                </label>
-                <select
-                  className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
-                  value={editData.frequency || "medium"}
-                  onChange={(e) =>
-                    setEditData({ ...editData, frequency: e.target.value })
-                  }
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Companies (comma-separated)
-              </label>
-              <Input
-                value={(editData.companies || []).join(", ")}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    companies: e.target.value
-                      .split(",")
-                      .map((s: string) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder="Google, Amazon, Microsoft"
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditMode("none");
-                  setEditData(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={saveInterviewQ} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? "Saving..." : "Save Question"}
-              </Button>
-            </div>
-          </div>
+            <Button onClick={saveInterviewQ} disabled={saving}>
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : "Save Question"}
+            </Button>
+          </DialogActions>
         </div>
-      </div>
+      </FormModal>
     );
   };
 
@@ -593,17 +626,29 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   const renderDeleteConfirm = () => {
     if (!deleteConfirm) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-card rounded-xl border border-border p-6 max-w-md">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertTriangle className="h-6 w-6 text-red-400" />
-            <h3 className="text-lg font-bold">Confirm Delete</h3>
+      <div className={OVERLAY_CLASS}>
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="admin-delete-title"
+          aria-describedby="admin-delete-description"
+          className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-destructive/30 bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <h3 id="admin-delete-title" className="text-base font-semibold leading-8">
+                Confirm Delete
+              </h3>
+              <p id="admin-delete-description" className="text-sm text-muted-foreground">
+                Are you sure you want to delete this item? This action cannot be
+                undone.
+              </p>
+            </div>
           </div>
-          <p className="text-muted-foreground mb-6">
-            Are you sure you want to delete this item? This action cannot be
-            undone.
-          </p>
-          <div className="flex justify-end gap-3">
+          <DialogActions className="mt-6">
             <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
               Cancel
             </Button>
@@ -616,9 +661,10 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
                 else if (type === "interview") deleteInterviewQ(id);
               }}
             >
+              <Trash2 className="h-4 w-4" />
               Delete
             </Button>
-          </div>
+          </DialogActions>
         </div>
       </div>
     );
@@ -627,8 +673,9 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
   // ========== MAIN RENDER ==========
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-64 items-center justify-center" role="status">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <span className="sr-only">Loading content</span>
       </div>
     );
   }
@@ -641,43 +688,54 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
       {renderDeleteConfirm()}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Admin Panel</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage topics, MCQs, and interview questions
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {topics.length} topics | {topics.reduce((s, t) => s + (t.mcqCount || 0), 0)} MCQs |{" "}
-            {topics.reduce((s, t) => s + (t.interviewQuestionCount || 0), 0)} IQs
-          </span>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Content"
+        title="Admin"
+        description="Manage topics, MCQs, and interview questions"
+        actions={
+          <>
+            <span className="mr-2 font-mono text-xs tabular-nums text-muted-foreground">
+              <span className="text-foreground">{topics.length}</span> topics
+              {" · "}
+              <span className="text-foreground">
+                {topics.reduce((s, t) => s + (t.mcqCount || 0), 0)}
+              </span>{" "}
+              MCQs
+              {" · "}
+              <span className="text-foreground">
+                {topics.reduce((s, t) => s + (t.interviewQuestionCount || 0), 0)}
+              </span>{" "}
+              IQs
+            </span>
+            <Button variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </>
+        }
+      />
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-12 gap-6">
+      {/* Two-column layout on laptops, stacked on phones and tablets */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left: Topic List */}
-        <div className="col-span-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Card className="min-w-0 self-start overflow-hidden lg:col-span-5 xl:col-span-4">
+          <div className="flex items-center gap-2 border-b p-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search topics..."
+                aria-label="Search topics"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className="h-9 pl-9"
               />
             </div>
             <Button
-              size="sm"
+              variant="secondary"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              aria-label="New topic"
+              title="New topic"
               onClick={() => {
                 setEditMode("topic");
                 setEditData({
@@ -696,386 +754,428 @@ export const AdminPanel = ({ onBack }: AdminPanelProps) => {
             </Button>
           </div>
 
-          <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-auto">
-            {filteredTopics.map((topic) => (
-              <div
-                key={topic._id}
-                className={`rounded-lg border transition-colors cursor-pointer ${
-                  selectedTopic?._id === topic._id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-accent/50"
-                }`}
-                onClick={() => setSelectedTopic(topic)}
-              >
-                <div className="flex items-center justify-between p-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{topic.icon}</span>
-                    <div>
-                      <p className="font-medium text-sm">{topic.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {topic.subtopics?.length || 0} subtopics |{" "}
-                        {topic.mcqCount || 0} MCQs | {topic.interviewQuestionCount || 0} IQs
-                      </p>
+          {filteredTopics.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              {topics.length === 0 ? "No topics yet." : "No topics match your search."}
+            </p>
+          ) : (
+            <ul className="max-h-80 divide-y overflow-auto lg:max-h-[calc(100vh-280px)]">
+              {filteredTopics.map((topic) => {
+                const isSelected = selectedTopic?._id === topic._id;
+                return (
+                  <li
+                    key={topic._id}
+                    className={cn(
+                      "relative flex items-center transition-colors",
+                      isSelected ? "bg-accent" : "hover:bg-accent/50"
+                    )}
+                  >
+                    {isSelected && (
+                      <span
+                        className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full bg-primary"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      aria-current={isSelected ? "true" : undefined}
+                      onClick={() => setSelectedTopic(topic)}
+                      className="min-w-0 flex-1 py-3 pl-4 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <span className="block truncate text-sm font-medium">{topic.name}</span>
+                      <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <LevelBadge level={topic.difficulty} />
+                        <span className="flex items-center gap-3 font-mono text-xs tabular-nums text-muted-foreground">
+                          {[
+                            { label: "subtopics", icon: BookOpen, count: topic.subtopics?.length || 0 },
+                            { label: "MCQs", icon: HelpCircle, count: topic.mcqCount || 0 },
+                            { label: "interview questions", icon: MessageSquare, count: topic.interviewQuestionCount || 0 },
+                          ].map(({ label, icon: Icon, count }) => (
+                            <span key={label} className="inline-flex items-center gap-1" title={`${count} ${label}`}>
+                              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                              {count}
+                              <span className="sr-only"> {label}</span>
+                            </span>
+                          ))}
+                        </span>
+                      </span>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-0.5 pr-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        aria-label={`Edit ${topic.name}`}
+                        title="Edit topic"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditMode("topic");
+                          setEditData({ ...topic });
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Delete ${topic.name}`}
+                        title="Delete topic"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm(`topic:${topic._id}`);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {diffBadge(topic.difficulty)}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditMode("topic");
-                        setEditData({ ...topic });
-                      }}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirm(`topic:${topic._id}`);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
 
         {/* Right: Content View */}
-        <div className="col-span-8">
+        <div className="min-w-0 lg:col-span-7 xl:col-span-8">
           {!selectedTopic ? (
-            <div className="flex items-center justify-center h-64 text-muted-foreground">
-              <div className="text-center">
-                <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Select a topic to manage its content</p>
-              </div>
-            </div>
+            <EmptyState icon={BookOpen} title="Select a topic to manage its content" />
           ) : (
             <div className="space-y-4">
               {/* Topic Header */}
-              <div className="bg-card rounded-lg border border-border p-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{selectedTopic.icon}</span>
-                  <div>
-                    <h2 className="text-xl font-bold">{selectedTopic.name}</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedTopic.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <Card className="p-5">
+                <h2 className="text-lg font-semibold leading-snug">{selectedTopic.name}</h2>
+                {selectedTopic.description && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {selectedTopic.description}
+                  </p>
+                )}
+              </Card>
 
               {/* Content Tabs */}
-              <div className="flex gap-1 bg-card/50 p-1 rounded-lg border border-border">
-                {([
-                  { id: "topics" as Tab, label: "Subtopics", icon: BookOpen },
-                  { id: "mcqs" as Tab, label: "MCQs", icon: HelpCircle },
-                  {
-                    id: "interview" as Tab,
-                    label: "Interview Qs",
-                    icon: MessageSquare,
-                  },
-                ] as const).map((t) => (
-                  <Button
-                    key={t.id}
-                    variant={tab === t.id ? "default" : "ghost"}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setTab(t.id)}
-                  >
-                    <t.icon className="h-4 w-4 mr-2" />
-                    {t.label}
-                  </Button>
-                ))}
-              </div>
-
-              {/* Subtopics Tab */}
-              {tab === "topics" && (
-                <div className="space-y-2">
-                  {(selectedTopic.subtopics || []).map(
-                    (sub: any, idx: number) => (
-                      <div
-                        key={sub._id || idx}
-                        className="border border-border rounded-lg"
-                      >
-                        <button
-                          className="w-full flex items-center justify-between p-3 hover:bg-accent/50 transition-colors"
-                          onClick={() => toggleExpand(sub._id || String(idx))}
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedTopics.has(sub._id || String(idx)) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            <span className="font-medium text-sm">
-                              {idx + 1}. {sub.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {sub.timeComplexity && (
-                              <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">
-                                {sub.timeComplexity}
-                              </span>
-                            )}
-                            <span>
-                              {sub.concepts?.length || 0} concepts
-                            </span>
-                          </div>
-                        </button>
-                        {expandedTopics.has(sub._id || String(idx)) && (
-                          <div className="border-t border-border p-4 space-y-3 text-sm">
-                            <div>
-                              <p className="font-medium text-muted-foreground mb-1">
-                                Concepts:
-                              </p>
-                              <ul className="list-disc list-inside space-y-1">
-                                {(sub.concepts || []).map(
-                                  (c: string, ci: number) => (
-                                    <li key={ci}>{c}</li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-                            {sub.codeExample && (
-                              <div>
-                                <p className="font-medium text-muted-foreground mb-1">
-                                  Code: {sub.codeExample.title}
-                                </p>
-                                <pre className="bg-zinc-900 text-zinc-100 p-3 rounded-lg text-xs overflow-auto max-h-48">
-                                  <code>{sub.codeExample.code}</code>
-                                </pre>
-                                {sub.codeExample.explanation && (
-                                  <p className="mt-2 text-muted-foreground text-xs">
-                                    {sub.codeExample.explanation}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  )}
-                  {(!selectedTopic.subtopics ||
-                    selectedTopic.subtopics.length === 0) && (
-                    <p className="text-center text-muted-foreground py-8">
-                      No subtopics yet. Add subtopics when editing the topic.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* MCQs Tab */}
-              {tab === "mcqs" && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">
-                      {mcqs.length} MCQs
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setEditMode("mcq");
-                        setEditData({
-                          question: "",
-                          options: ["", "", "", ""],
-                          correctIndex: 0,
-                          explanation: "",
-                          difficulty: "medium",
-                          order: mcqs.length,
-                        });
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add MCQ
-                    </Button>
-                  </div>
-                  {mcqs.map((mcq, idx) => (
-                    <div
-                      key={mcq._id}
-                      className="border border-border rounded-lg p-4"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-mono text-muted-foreground">
-                              Q{idx + 1}
-                            </span>
-                            {diffBadge(mcq.difficulty)}
-                          </div>
-                          <p className="text-sm font-medium mb-2">
-                            {mcq.question}
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {mcq.options?.map((opt: string, oi: number) => (
-                              <div
-                                key={oi}
-                                className={`text-xs px-3 py-1.5 rounded border ${
-                                  oi === mcq.correctIndex
-                                    ? "border-green-500/50 bg-green-500/10 text-green-400"
-                                    : "border-border"
-                                }`}
-                              >
-                                {String.fromCharCode(65 + oi)}. {opt}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex gap-1 ml-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => {
-                              setEditMode("mcq");
-                              setEditData({ ...mcq });
-                            }}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-400"
-                            onClick={() =>
-                              setDeleteConfirm(`mcq:${mcq._id}`)
-                            }
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+              <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+                <TabsList className="w-full">
+                  {([
+                    { id: "topics" as Tab, label: "Subtopics", icon: BookOpen },
+                    { id: "mcqs" as Tab, label: "MCQs", icon: HelpCircle },
+                    {
+                      id: "interview" as Tab,
+                      label: "Interview Qs",
+                      icon: MessageSquare,
+                    },
+                  ] as const).map((t) => (
+                    <TabsTrigger key={t.id} value={t.id} className="flex-1 gap-2">
+                      <t.icon className="hidden h-4 w-4 sm:block" />
+                      {t.label}
+                    </TabsTrigger>
                   ))}
-                </div>
-              )}
+                </TabsList>
 
-              {/* Interview Questions Tab */}
-              {tab === "interview" && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">
-                      {interviewQs.length} Interview Questions
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setEditMode("interview");
-                        setEditData({
-                          question: "",
-                          answer: "",
-                          difficulty: "medium",
-                          frequency: "medium",
-                          companies: [],
-                        });
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Question
-                    </Button>
-                  </div>
-                  {interviewQs.map((iq, idx) => (
-                    <div
-                      key={iq._id}
-                      className="border border-border rounded-lg"
-                    >
-                      <div className="flex items-start justify-between p-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-mono text-muted-foreground">
-                              #{idx + 1}
-                            </span>
-                            {diffBadge(iq.difficulty)}
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs ${
-                                iq.frequency === "high"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : iq.frequency === "medium"
-                                  ? "bg-blue-500/20 text-blue-400"
-                                  : "bg-gray-500/20 text-gray-400"
-                              }`}
-                            >
-                              {iq.frequency} freq
-                            </span>
-                          </div>
-                          <p className="text-sm font-medium mb-1">
-                            {iq.question}
-                          </p>
-                          {iq.companies?.length > 0 && (
-                            <div className="flex gap-1 flex-wrap">
-                              {iq.companies.map((c: string) => (
-                                <span
-                                  key={c}
-                                  className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded"
+                {/* Subtopics Tab */}
+                <TabsContent value="topics" className="mt-4">
+                  <Card className="overflow-hidden">
+                    {!selectedTopic.subtopics ||
+                    selectedTopic.subtopics.length === 0 ? (
+                      <EmptyState
+                        icon={BookOpen}
+                        title="No subtopics yet"
+                        description="Add subtopics when editing the topic."
+                        className="border-0"
+                      />
+                    ) : (
+                      <ul className="divide-y">
+                        {(selectedTopic.subtopics || []).map(
+                          (sub: any, idx: number) => {
+                            const isOpen = expandedTopics.has(sub._id || String(idx));
+                            return (
+                              <li key={sub._id || idx}>
+                                <button
+                                  type="button"
+                                  aria-expanded={isOpen}
+                                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                  onClick={() => toggleExpand(sub._id || String(idx))}
                                 >
-                                  {c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-1 ml-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => {
-                              setEditMode("interview");
-                              setEditData({ ...iq });
-                            }}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-400"
-                            onClick={() =>
-                              setDeleteConfirm(`interview:${iq._id}`)
-                            }
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <button
-                        className="w-full border-t border-border px-4 py-2 text-left hover:bg-accent/30 transition-colors"
-                        onClick={() =>
-                          toggleExpand(`iq-${iq._id}`)
-                        }
+                                  {isOpen ? (
+                                    <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                  )}
+                                  <span className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                    <span className="min-w-0 break-words text-sm font-medium">
+                                      <span className="mr-1 font-mono text-xs tabular-nums text-muted-foreground">
+                                        {idx + 1}.
+                                      </span>{" "}
+                                      {sub.title}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                                      {sub.timeComplexity && (
+                                        <span className="chip">{sub.timeComplexity}</span>
+                                      )}
+                                      <span>
+                                        <span className="font-mono tabular-nums text-foreground">
+                                          {sub.concepts?.length || 0}
+                                        </span>{" "}
+                                        concepts
+                                      </span>
+                                    </span>
+                                  </span>
+                                </button>
+                                {isOpen && (
+                                  <div className="space-y-4 border-t bg-muted/20 px-4 py-4 text-sm sm:pl-11">
+                                    <div>
+                                      <p className="eyebrow mb-2">Concepts</p>
+                                      <ul className="list-inside list-disc space-y-1 marker:text-muted-foreground">
+                                        {(sub.concepts || []).map(
+                                          (c: string, ci: number) => (
+                                            <li key={ci}>{c}</li>
+                                          )
+                                        )}
+                                      </ul>
+                                    </div>
+                                    {sub.codeExample && (
+                                      <div>
+                                        <p className="mb-2 flex flex-wrap items-baseline gap-x-2">
+                                          <span className="eyebrow">Code</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {sub.codeExample.title}
+                                          </span>
+                                        </p>
+                                        <pre className="max-h-48 overflow-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed">
+                                          <code>{sub.codeExample.code}</code>
+                                        </pre>
+                                        {sub.codeExample.explanation && (
+                                          <p className="mt-2 text-xs text-muted-foreground">
+                                            {sub.codeExample.explanation}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          }
+                        )}
+                      </ul>
+                    )}
+                  </Card>
+                </TabsContent>
+
+                {/* MCQs Tab */}
+                <TabsContent value="mcqs" className="mt-4">
+                  <Card className="overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-mono tabular-nums text-foreground">{mcqs.length}</span>{" "}
+                        MCQs
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditMode("mcq");
+                          setEditData({
+                            question: "",
+                            options: ["", "", "", ""],
+                            correctIndex: 0,
+                            explanation: "",
+                            difficulty: "medium",
+                            order: mcqs.length,
+                          });
+                        }}
                       >
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {expandedTopics.has(`iq-${iq._id}`) ? (
-                            <ChevronDown className="h-3 w-3" />
-                          ) : (
-                            <ChevronRight className="h-3 w-3" />
-                          )}
-                          {expandedTopics.has(`iq-${iq._id}`)
-                            ? "Hide Answer"
-                            : "Show Answer"}
-                        </div>
-                      </button>
-                      {expandedTopics.has(`iq-${iq._id}`) && (
-                        <div className="border-t border-border px-4 py-3 bg-accent/20">
-                          <p className="text-sm whitespace-pre-wrap">
-                            {iq.answer}
-                          </p>
-                        </div>
-                      )}
+                        <Plus className="h-4 w-4" />
+                        Add MCQ
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {mcqs.length === 0 ? (
+                      <EmptyState icon={HelpCircle} title="No MCQs yet" className="border-0" />
+                    ) : (
+                      <ul className="divide-y">
+                        {mcqs.map((mcq, idx) => (
+                          <li key={mcq._id} className="flex items-start gap-3 px-4 py-4">
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                                  Q{idx + 1}
+                                </span>
+                                <LevelBadge level={mcq.difficulty} />
+                              </div>
+                              <p className="break-words text-sm font-medium">
+                                {mcq.question}
+                              </p>
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {mcq.options?.map((opt: string, oi: number) => (
+                                  <div
+                                    key={oi}
+                                    className={cn(
+                                      "flex items-start gap-2 rounded-md border px-3 py-1.5 text-xs",
+                                      oi === mcq.correctIndex &&
+                                        "border-success/30 bg-success/10 text-success"
+                                    )}
+                                  >
+                                    <span className="min-w-0 flex-1 break-words">
+                                      <span className="font-mono">{String.fromCharCode(65 + oi)}.</span>{" "}
+                                      {opt}
+                                    </span>
+                                    {oi === mcq.correctIndex && (
+                                      <>
+                                        <Check className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                        <span className="sr-only">(correct answer)</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
+                                aria-label={`Edit MCQ ${idx + 1}`}
+                                title="Edit MCQ"
+                                onClick={() => {
+                                  setEditMode("mcq");
+                                  setEditData({ ...mcq });
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                aria-label={`Delete MCQ ${idx + 1}`}
+                                title="Delete MCQ"
+                                onClick={() =>
+                                  setDeleteConfirm(`mcq:${mcq._id}`)
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                </TabsContent>
+
+                {/* Interview Questions Tab */}
+                <TabsContent value="interview" className="mt-4">
+                  <Card className="overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-mono tabular-nums text-foreground">{interviewQs.length}</span>{" "}
+                        Interview Questions
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditMode("interview");
+                          setEditData({
+                            question: "",
+                            answer: "",
+                            difficulty: "medium",
+                            frequency: "medium",
+                            companies: [],
+                          });
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Question
+                      </Button>
+                    </div>
+                    {interviewQs.length === 0 ? (
+                      <EmptyState
+                        icon={MessageSquare}
+                        title="No interview questions yet"
+                        className="border-0"
+                      />
+                    ) : (
+                      <ul className="divide-y">
+                        {interviewQs.map((iq, idx) => {
+                          const isOpen = expandedTopics.has(`iq-${iq._id}`);
+                          return (
+                            <li key={iq._id} className="flex items-start gap-3 px-4 py-4">
+                              <div className="min-w-0 flex-1 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                                    #{idx + 1}
+                                  </span>
+                                  <LevelBadge level={iq.difficulty} />
+                                  <Badge variant="outline">{iq.frequency} freq</Badge>
+                                </div>
+                                <p className="break-words text-sm font-medium">
+                                  {iq.question}
+                                </p>
+                                {iq.companies?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {iq.companies.map((c: string) => (
+                                      <span key={c} className="chip">
+                                        {c}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  aria-expanded={isOpen}
+                                  className="inline-flex items-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() =>
+                                    toggleExpand(`iq-${iq._id}`)
+                                  }
+                                >
+                                  {isOpen ? (
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                  )}
+                                  {isOpen ? "Hide Answer" : "Show Answer"}
+                                </button>
+                                {isOpen && (
+                                  <div className="rounded-md border bg-muted/40 px-3 py-2.5">
+                                    <p className="whitespace-pre-wrap break-words text-sm">
+                                      {iq.answer}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex shrink-0 gap-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground"
+                                  aria-label={`Edit interview question ${idx + 1}`}
+                                  title="Edit question"
+                                  onClick={() => {
+                                    setEditMode("interview");
+                                    setEditData({ ...iq });
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                  aria-label={`Delete interview question ${idx + 1}`}
+                                  title="Delete question"
+                                  onClick={() =>
+                                    setDeleteConfirm(`interview:${iq._id}`)
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </div>

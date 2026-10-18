@@ -2,138 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Prodify design system: a dark, editor-like palette with a single accent colour.
+   Components use these tokens (bg-card, text-muted-foreground, text-primary, ...) instead of
+   Tailwind's fixed hues, so every screen looks like part of the same app.
+   Colour always means something:
+     primary     - actions, focus, progress (the accent picked in Settings)
+     success     - solved, accepted, easy
+     warning     - medium difficulty, due soon
+     destructive - hard difficulty, errors, overdue
+   Everything else is a shade of grey. All values are HSL. */
 
 @layer base {
   :root {
-    /* Brand colour (the accent picker in Settings changes only these three) */
-    --brand-h: 24;
-    --brand-s: 95%;
-    --brand-l: 53%;
+    /* Accent (Settings > Appearance changes only these three) */
+    --brand-h: 152;
+    --brand-s: 60%;
+    --brand-l: 52%;
 
-    --background: 0 0% 100%;
-    --foreground: 220 13% 18%;
+    --background: 240 4% 4.5%;
+    --foreground: 240 5% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 13% 18%;
+    --card: 240 5% 7%;
+    --card-foreground: 240 5% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 18%;
+    --popover: 240 6% 8.5%;
+    --popover-foreground: 240 5% 92%;
 
     --primary: var(--brand-h) var(--brand-s) var(--brand-l);
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 240 6% 5%;
 
-    --secondary: var(--brand-h) 100% 97%;
-    --secondary-foreground: var(--primary);
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 240 5% 92%;
 
-    --muted: 20 14% 96%;
-    --muted-foreground: 220 8.9% 46.1%;
+    --muted: 240 5% 10%;
+    --muted-foreground: 240 5% 64%;
 
-    --accent: var(--brand-h) 100% 95%;
-    --accent-foreground: var(--primary);
+    --accent: 240 5% 14%;
+    --accent-foreground: 240 5% 96%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 84% 63%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
+    --success: 152 60% 52%;
+    --success-foreground: 240 6% 5%;
+
+    --warning: 38 92% 56%;
+    --warning-foreground: 240 6% 5%;
+
+    --border: 240 5% 15%;
+    --input: 240 5% 18%;
     --ring: var(--primary);
-
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 45 93% 47%;
-    --warning-foreground: 0 0% 100%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--brand-h) var(--brand-s) 63%));
-    --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-h) 100% 97%), hsl(20 14% 96%));
-    --gradient-accent: linear-gradient(135deg, hsl(var(--primary)), hsl(45 93% 47%));
-    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(0 0% 98%));
-
-    --shadow-soft: 0 4px 20px hsl(var(--primary) / 0.1);
-    --shadow-medium: 0 8px 30px hsl(var(--primary) / 0.15);
-    --shadow-strong: 0 12px 40px hsl(var(--primary) / 0.2);
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Older decorative tokens, kept flat so nothing glows or fades */
+    --gradient-primary: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+    --gradient-secondary: linear-gradient(hsl(var(--muted)), hsl(var(--muted)));
+    --gradient-accent: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+    --gradient-card: linear-gradient(hsl(var(--card)), hsl(var(--card)));
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-medium: 0 4px 12px rgb(0 0 0 / 0.45);
+    --shadow-strong: 0 8px 24px rgb(0 0 0 / 0.5);
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: var(--brand-h) var(--brand-s) var(--brand-l);
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    /* Same red as light mode: the darker default was unreadable as error text on the dark background */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: var(--primary);
-    
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--brand-h) var(--brand-s) 63%));
-    --gradient-secondary: linear-gradient(135deg, hsl(217.2 32.6% 17.5%), hsl(222.2 84% 4.9%));
-    --gradient-accent: linear-gradient(135deg, hsl(var(--primary)), hsl(45 93% 47%));
-    --gradient-card: linear-gradient(135deg, hsl(222.2 84% 4.9%), hsl(217.2 32.6% 17.5%));
-    
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: var(--background);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--input)) transparent;
+  }
+
+  html {
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+  }
+
+  code, kbd, pre, samp {
+    @apply font-mono;
   }
 }
 
-/* Dark mode for the light status tints used across the app (bg-green-50, text-red-800, ...).
-   :where() keeps these at the same priority as the original class, so any explicit
-   dark: class on an element still wins. Regenerate if you add new tint classes. */
+@layer components {
+  /* Small monospace label above a heading or a number, e.g. "DAILY PROBLEM" */
+  .eyebrow {
+    @apply font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground;
+  }
+
+  /* Topic or tag chip */
+  .chip {
+    @apply inline-flex items-center rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] leading-4 text-muted-foreground;
+  }
+
+  /* Keyboard shortcut hint */
+  .kbd {
+    @apply inline-flex items-center rounded border border-border bg-muted px-1.5 font-mono text-[11px] leading-5 text-muted-foreground;
+  }
+
+  /* Faint dot grid behind hero areas */
+  .bg-dots {
+    background-image: radial-gradient(hsl(var(--foreground) / 0.07) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+}
+
+/* Safety net for any fixed light-theme tints still in the markup (bg-green-50, text-red-800, ...):
+   shows them as faint tints of the same hue on the dark background. :where() keeps them at the
+   original priority, so an explicit class on the element still wins. Prefer the tokens above. */
 .dark :where(.bg-amber-100) { background-color: rgb(245 158 11 / 0.15); }
 .dark :where(.bg-amber-50) { background-color: rgb(245 158 11 / 0.1); }
 .dark :where(.bg-blue-100) { background-color: rgb(59 130 246 / 0.15); }

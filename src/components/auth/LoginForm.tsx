@@ -1,158 +1,49 @@
-import { useState, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { Mail, Lock, User as UserIcon, BookOpen, Brain, AlertCircle, ArrowLeft, KeyRound, Sparkles, Rocket, Code2, Trophy, Zap, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, ArrowLeft, CalendarCheck, Code2, Eye, EyeOff, Flame, Loader2, Mail } from "lucide-react";
 import { apiService, type User } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { Logo } from "@/components/common/Logo";
 
 interface LoginFormProps {
   onLogin: (userData: User) => void;
 }
 
-// Cartoon owl mascot that reacts to user actions
-const Mascot = ({ mood, isLoading }: { mood: string; isLoading: boolean }) => {
-  const messages: Record<string, string> = {
-    idle: "Hey! Ready to code?",
-    typing: "Keep going...",
-    otp: "Check your email!",
-    success: "Welcome aboard!",
-    error: "Oops! Try again",
-  };
-
-  // Eye styles per mood
-  const getEyes = (m: string) => {
-    switch (m) {
-      case "typing":
-        return { leftPupilX: 38, leftPupilY: 44, rightPupilX: 62, rightPupilY: 44, leftEyeScaleY: 1, rightEyeScaleY: 1, pupilSize: 4 };
-      case "otp":
-        return { leftPupilX: 40, leftPupilY: 42, rightPupilX: 60, rightPupilY: 42, leftEyeScaleY: 1, rightEyeScaleY: 1, pupilSize: 5.5 };
-      case "success":
-        return { leftPupilX: 40, leftPupilY: 42, rightPupilX: 60, rightPupilY: 42, leftEyeScaleY: 0.15, rightEyeScaleY: 0.15, pupilSize: 4 };
-      case "error":
-        return { leftPupilX: 40, leftPupilY: 44, rightPupilX: 60, rightPupilY: 44, leftEyeScaleY: 0.7, rightEyeScaleY: 0.7, pupilSize: 3.5 };
-      default:
-        return { leftPupilX: 40, leftPupilY: 42, rightPupilX: 60, rightPupilY: 42, leftEyeScaleY: 1, rightEyeScaleY: 1, pupilSize: 4.5 };
-    }
-  };
-
-  const eyes = getEyes(mood);
-  const bodyColor = mood === "success" ? "#22c55e" : mood === "error" ? "#ef4444" : "#f97316";
-  const bodyColorLight = mood === "success" ? "#4ade80" : mood === "error" ? "#f87171" : "#fb923c";
-
-  return (
-    <div className={`mascot-container ${mood === "success" ? "mascot-celebrate" : ""} ${isLoading ? "mascot-loading" : ""}`}>
-      <div className="mascot-body">
-        <svg viewBox="0 0 100 110" width="90" height="99" xmlns="http://www.w3.org/2000/svg">
-          {/* Ear tufts */}
-          <ellipse cx="28" cy="18" rx="10" ry="14" fill={bodyColor} transform="rotate(-20 28 18)" />
-          <ellipse cx="72" cy="18" rx="10" ry="14" fill={bodyColor} transform="rotate(20 72 18)" />
-          <ellipse cx="28" cy="16" rx="6" ry="9" fill={bodyColorLight} transform="rotate(-20 28 16)" />
-          <ellipse cx="72" cy="16" rx="6" ry="9" fill={bodyColorLight} transform="rotate(20 72 16)" />
-
-          {/* Body */}
-          <ellipse cx="50" cy="58" rx="34" ry="36" fill={bodyColor} />
-          <ellipse cx="50" cy="60" rx="28" ry="28" fill={bodyColorLight} opacity="0.35" />
-
-          {/* Belly */}
-          <ellipse cx="50" cy="68" rx="20" ry="18" fill="#fff" opacity="0.9" />
-
-          {/* Eye whites */}
-          <ellipse cx="38" cy="42" rx="13" ry="13" fill="white" stroke={bodyColor} strokeWidth="1.5"
-            style={{ transform: `scaleY(${eyes.leftEyeScaleY})`, transformOrigin: '38px 42px', transition: 'all 0.3s ease' }} />
-          <ellipse cx="62" cy="42" rx="13" ry="13" fill="white" stroke={bodyColor} strokeWidth="1.5"
-            style={{ transform: `scaleY(${eyes.rightEyeScaleY})`, transformOrigin: '62px 42px', transition: 'all 0.3s ease' }} />
-
-          {/* Pupils */}
-          {eyes.leftEyeScaleY > 0.2 && (
-            <>
-              <circle cx={eyes.leftPupilX} cy={eyes.leftPupilY} r={eyes.pupilSize} fill="#1f2937"
-                style={{ transition: 'all 0.3s ease' }} />
-              <circle cx={eyes.leftPupilX - 1.5} cy={eyes.leftPupilY - 1.5} r={1.5} fill="white" />
-              <circle cx={eyes.rightPupilX} cy={eyes.rightPupilY} r={eyes.pupilSize} fill="#1f2937"
-                style={{ transition: 'all 0.3s ease' }} />
-              <circle cx={eyes.rightPupilX - 1.5} cy={eyes.rightPupilY - 1.5} r={1.5} fill="white" />
-            </>
-          )}
-
-          {/* Beak */}
-          <path d="M 46 52 L 50 58 L 54 52 Z" fill="#f59e0b" stroke="#d97706" strokeWidth="0.5" />
-
-          {/* Blush */}
-          <circle cx="26" cy="52" r="5" fill="#fda4af" opacity="0.5" />
-          <circle cx="74" cy="52" r="5" fill="#fda4af" opacity="0.5" />
-
-          {/* Mouth / expression */}
-          {mood === "success" && (
-            <path d="M 43 62 Q 50 68 57 62" fill="none" stroke="#1f2937" strokeWidth="1.5" strokeLinecap="round" />
-          )}
-          {mood === "error" && (
-            <path d="M 43 66 Q 50 62 57 66" fill="none" stroke="#1f2937" strokeWidth="1.5" strokeLinecap="round" />
-          )}
-          {mood === "otp" && (
-            <ellipse cx="50" cy="64" rx="4" ry="3" fill="#1f2937" />
-          )}
-
-          {/* Feet */}
-          <ellipse cx="40" cy="92" rx="8" ry="4" fill={bodyColor} />
-          <ellipse cx="60" cy="92" rx="8" ry="4" fill={bodyColor} />
-
-          {/* Glasses (coding owl!) */}
-          <circle cx="38" cy="42" r="15" fill="none" stroke="#374151" strokeWidth="2" opacity="0.6"
-            style={{ transform: `scaleY(${Math.max(eyes.leftEyeScaleY, 0.4)})`, transformOrigin: '38px 42px', transition: 'all 0.3s ease' }} />
-          <circle cx="62" cy="42" r="15" fill="none" stroke="#374151" strokeWidth="2" opacity="0.6"
-            style={{ transform: `scaleY(${Math.max(eyes.rightEyeScaleY, 0.4)})`, transformOrigin: '62px 42px', transition: 'all 0.3s ease' }} />
-          <line x1="53" y1="42" x2="47" y2="42" stroke="#374151" strokeWidth="2" opacity="0.6" />
-
-          {/* Wing wave on success */}
-          {mood === "success" && (
-            <path d="M 80 50 Q 90 40 95 50 Q 90 45 85 55" fill={bodyColor} className="wing-wave" />
-          )}
-        </svg>
-      </div>
-      <div className="mascot-speech">
-        <span className="speech-arrow" />
-        {messages[mood] || messages.idle}
-      </div>
+// A short terminal session that shows what Prodify is about (decorative)
+const TerminalDemo = () => (
+  <div className="rounded-lg border bg-card font-mono text-[13px] leading-6 shadow-2xl shadow-black/50" aria-hidden="true">
+    <div className="flex items-center gap-1.5 border-b px-4 py-2.5">
+      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/25" />
+      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/25" />
+      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/25" />
+      <span className="ml-2 text-xs text-muted-foreground">~/prodify</span>
     </div>
-  );
-};
-
-// Floating particles on hero. Positions are picked once, so they don't jump on every keystroke.
-const FloatingShapes = memo(() => {
-  const shapes = useMemo(() => [...Array(15)].map(() => ({
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    animationDelay: `${Math.random() * 8}s`,
-    animationDuration: `${8 + Math.random() * 12}s`,
-  })), []);
-  return (
-    <div className="floating-shapes">
-      {shapes.map((style, i) => (
-        <div key={i} className={`floating-shape shape-${i % 5}`} style={style} />
-      ))}
+    <div className="px-4 py-3">
+      <p><span className="text-primary">$</span> prodify today</p>
+      <p className="text-muted-foreground">  Product of Array Except Self · <span className="text-warning">medium</span></p>
+      <p className="mt-2"><span className="text-primary">$</span> prodify submit solution.py</p>
+      <p className="text-muted-foreground">  running 3 test cases...</p>
+      <p className="text-success">  ✓ Accepted · 3/3 passed</p>
+      <p className="mt-2"><span className="text-primary">$</span> prodify streak</p>
+      <p className="text-muted-foreground">  12 days in a row · best 21</p>
+      <p className="mt-2 flex items-center gap-2">
+        <span className="text-primary">$</span>
+        <span className="inline-block h-4 w-2 animate-caret-blink bg-primary" />
+      </p>
     </div>
-  );
-});
+  </div>
+);
 
-// Confetti on success
-const Confetti = memo(({ active }: { active: boolean }) => {
-  const pieces = useMemo(() => [...Array(50)].map((_, i) => ({
-    left: `${Math.random() * 100}%`,
-    animationDelay: `${Math.random() * 0.5}s`,
-    backgroundColor: ['#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'][i % 6],
-  })), []);
-  if (!active) return null;
-  return (
-    <div className="confetti-container">
-      {pieces.map((style, i) => <div key={i} className="confetti-piece" style={style} />)}
-    </div>
-  );
-});
+const FEATURES = [
+  { icon: Code2, text: "A real editor: Python, JavaScript, C++, Java, C#, Go and Rust" },
+  { icon: Flame, text: "Streaks and a GitHub-style activity graph" },
+  { icon: CalendarCheck, text: "A planner and focus timer for your prep" },
+];
 
 // Password input with a show/hide toggle
 const PasswordInput = ({ id, value, onChange, placeholder, autoComplete, disabled }: {
@@ -161,12 +52,12 @@ const PasswordInput = ({ id, value, onChange, placeholder, autoComplete, disable
 }) => {
   const [visible, setVisible] = useState(false);
   return (
-    <div className="relative group">
-      <Lock className="input-icon" />
-      <Input id={id} type={visible ? "text" : "password"} placeholder={placeholder} className="auth-input pr-10"
+    <div className="relative">
+      <Input id={id} type={visible ? "text" : "password"} placeholder={placeholder} className="pr-10"
         value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} required disabled={disabled} />
-      <button type="button" className="password-toggle" onClick={() => setVisible(!visible)}
-        aria-label={visible ? "Hide password" : "Show password"} tabIndex={-1}>
+      <button type="button" onClick={() => setVisible(!visible)} tabIndex={-1}
+        aria-label={visible ? "Hide password" : "Show password"}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground">
         {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
     </div>
@@ -177,25 +68,23 @@ const PasswordInput = ({ id, value, onChange, placeholder, autoComplete, disable
 const OtpBoxes = ({ value, onChange, onComplete, disabled }: {
   value: string; onChange: (value: string) => void; onComplete: (code: string) => void; disabled: boolean;
 }) => (
-  <div className="flex justify-center">
-    <InputOTP maxLength={6} value={value} onChange={onChange} onComplete={onComplete}
-      pattern={REGEXP_ONLY_DIGITS} pasteTransformer={(text) => text.replace(/\D/g, "")}
-      inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={disabled}>
-      <InputOTPGroup>
-        {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
-      </InputOTPGroup>
-    </InputOTP>
-  </div>
+  <InputOTP maxLength={6} value={value} onChange={onChange} onComplete={onComplete}
+    pattern={REGEXP_ONLY_DIGITS} pasteTransformer={(text) => text.replace(/\D/g, "")}
+    inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={disabled}>
+    <InputOTPGroup>
+      {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+    </InputOTPGroup>
+  </InputOTP>
 );
+
+const Spinner = () => <Loader2 className="h-4 w-4 animate-spin" />;
 
 export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const { toast } = useToast();
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [mascotMood, setMascotMood] = useState("idle");
-  const isDone = mascotMood === "success";
+  const [isDone, setIsDone] = useState(false);
 
   // Login state
   const [loginMode, setLoginMode] = useState<"password" | "otp">("password");
@@ -219,23 +108,15 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  useEffect(() => { if (error) setMascotMood("error"); }, [error]);
-
-  const triggerSuccess = useCallback(() => {
-    setMascotMood("success");
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
-  }, []);
-
   // Typing again clears the last error
-  const clearError = () => { if (error) { setError(""); setMascotMood("typing"); } };
+  const clearError = () => { if (error) setError(""); };
 
-  const finishLogin = (user: User, token: string, title: string, description: string) => {
+  const finishLogin = useCallback((user: User, token: string, title: string, description: string) => {
     apiService.setToken(token);
-    triggerSuccess();
+    setIsDone(true);
     toast({ title, description });
-    setTimeout(() => onLogin(user), 1500);
-  };
+    setTimeout(() => onLogin(user), 500);
+  }, [onLogin, toast]);
 
   // Signup handlers
   const handleSendSignupOtp = async (e: React.FormEvent) => {
@@ -245,8 +126,8 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     setIsLoading(true);
     try {
       await apiService.sendOtp({ email: signupData.email, purpose: "signup" });
-      setSignupOtp(""); setSignupStep("otp"); setCooldown(60); setMascotMood("otp");
-      toast({ title: "Code sent!", description: `Check your inbox at ${signupData.email}` });
+      setSignupOtp(""); setSignupStep("otp"); setCooldown(60);
+      toast({ title: "Code sent", description: `Check your inbox at ${signupData.email}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to send OTP"); }
     finally { setIsLoading(false); }
   };
@@ -258,7 +139,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
       const response = await apiService.signup({
         name: signupData.name, email: signupData.email, password: signupData.password, otp: code,
       });
-      finishLogin(response.user, response.token, "Account created!", "Welcome to Prodify.");
+      finishLogin(response.user, response.token, "Account created", "Welcome to Prodify.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
       setSignupOtp("");
@@ -270,7 +151,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     try {
       await apiService.sendOtp({ email: signupData.email, purpose: "signup" });
       setCooldown(60); setSignupOtp("");
-      toast({ title: "New code sent!", description: `Check your inbox at ${signupData.email}` });
+      toast({ title: "New code sent", description: `Check your inbox at ${signupData.email}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to resend OTP"); }
     finally { setIsLoading(false); }
   };
@@ -280,7 +161,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     e.preventDefault(); setIsLoading(true); setError("");
     try {
       const response = await apiService.signin(loginData);
-      finishLogin(response.user, response.token, "Login successful!", "Welcome back to Prodify.");
+      finishLogin(response.user, response.token, "Logged in", "Welcome back to Prodify.");
     } catch (err) { setError(err instanceof Error ? err.message : "Login failed"); }
     finally { setIsLoading(false); }
   };
@@ -289,8 +170,8 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     e.preventDefault(); setIsLoading(true); setError("");
     try {
       await apiService.sendOtp({ email: loginOtpEmail, purpose: "signin" });
-      setLoginOtp(""); setLoginOtpStep("otp"); setCooldown(60); setMascotMood("otp");
-      toast({ title: "Code sent!", description: `Check your inbox at ${loginOtpEmail}` });
+      setLoginOtp(""); setLoginOtpStep("otp"); setCooldown(60);
+      toast({ title: "Code sent", description: `Check your inbox at ${loginOtpEmail}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to send OTP"); }
     finally { setIsLoading(false); }
   };
@@ -300,7 +181,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     setIsLoading(true); setError("");
     try {
       const response = await apiService.signinWithOtp({ email: loginOtpEmail, otp: code });
-      finishLogin(response.user, response.token, "Login successful!", "Welcome back to Prodify.");
+      finishLogin(response.user, response.token, "Logged in", "Welcome back to Prodify.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setLoginOtp("");
@@ -312,7 +193,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     try {
       await apiService.sendOtp({ email: loginOtpEmail, purpose: "signin" });
       setCooldown(60); setLoginOtp("");
-      toast({ title: "New code sent!", description: `Check your inbox at ${loginOtpEmail}` });
+      toast({ title: "New code sent", description: `Check your inbox at ${loginOtpEmail}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to resend OTP"); }
     finally { setIsLoading(false); }
   };
@@ -327,7 +208,6 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     setTab(value as "login" | "signup");
     setError(""); setSignupStep("form"); setLoginOtpStep("email");
     setSignupOtp(""); setLoginOtp("");
-    setMascotMood("idle");
   };
 
   // "Account already exists" on sign-up: offer to log in with the same email
@@ -338,324 +218,211 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     handleTabChange("login");
   };
 
-  const onFormFocus = () => { if (!["otp", "success", "error"].includes(mascotMood)) setMascotMood("typing"); };
-  const onFormBlur = () => { if (!["otp", "success", "error"].includes(mascotMood)) setMascotMood("idle"); };
-
   const errorAlert = error ? (
-    // key restarts the shake animation only when the message changes
-    <div key={error} className="error-alert animate-shake" role="alert">
-      <AlertCircle className="h-4 w-4 shrink-0" />
+    <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="flex-1">{error}</span>
       {tab === "signup" && /already exists/i.test(error) && (
-        <button type="button" className="font-semibold underline whitespace-nowrap" onClick={goToLogin}>Log in instead</button>
+        <button type="button" className="whitespace-nowrap font-medium underline underline-offset-2" onClick={goToLogin}>Log in instead</button>
       )}
     </div>
   ) : null;
 
-  const resendLine = (onResend: () => void) => (
-    <div className="text-center text-sm">
-      {cooldown > 0 ? <span className="text-muted-foreground">Didn't get it? Resend in <span className="font-mono font-bold text-primary">{cooldown}s</span></span>
-        : <button type="button" className="text-primary hover:underline font-medium" onClick={onResend} disabled={isLoading}>Resend code</button>}
-      <p className="text-xs text-muted-foreground mt-1">Check your spam folder too. You can paste the whole code.</p>
+  const codeHeader = (email: string) => (
+    <div className="space-y-1 text-center">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md border bg-muted">
+        <Mail className="h-5 w-5 text-primary" />
+      </div>
+      <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
+      <p className="break-all font-mono text-sm font-medium">{email}</p>
     </div>
   );
 
+  const resendLine = (onResend: () => void) => (
+    <div className="space-y-1 text-center text-sm">
+      {cooldown > 0 ? (
+        <p className="text-muted-foreground">Didn't get it? Resend in <span className="font-mono text-foreground">{cooldown}s</span></p>
+      ) : (
+        <button type="button" className="font-medium text-primary hover:underline" onClick={onResend} disabled={isLoading}>Resend code</button>
+      )}
+      <p className="text-xs text-muted-foreground">Check your spam folder too. You can paste the whole code.</p>
+    </div>
+  );
+
+  const backLink = (label: string, onClick: () => void) => (
+    <button type="button" onClick={onClick} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="h-3.5 w-3.5" /> {label}
+    </button>
+  );
+
+  const title = isDone ? "You're in" : tab === "signup" ? "Create your account" : "Welcome back";
+  const subtitle = isDone
+    ? "Opening your dashboard..."
+    : tab === "signup" ? "Start a daily practice habit. It's free." : "Log in to continue your practice.";
+
   return (
-    <div className="login-page">
-      <Confetti active={showConfetti} />
-
-      {/* Left - Animated Hero */}
-      <div className="hero-panel">
-        <FloatingShapes />
-        <div className="hero-content">
-          <div className="hero-badge animate-float">
-            <Sparkles className="h-5 w-5" /><span>AI-Powered Learning</span>
-          </div>
-          <h1 className="hero-title">
-            <Brain className="h-12 w-12 animate-pulse-slow" /><span>Prodify</span>
-          </h1>
-          <p className="hero-subtitle">Master DSA, Manage Time, and Ace Your Goals</p>
-
-          <div className="hero-features">
-            <div className="hero-feature animate-slide-in" style={{ animationDelay: "0.2s" }}>
-              <div className="feature-icon"><Code2 className="h-5 w-5" /></div>
-              <div><div className="feature-title">Smart Problem Tracking</div><div className="feature-desc">Track your coding progress & streaks</div></div>
-            </div>
-            <div className="hero-feature animate-slide-in" style={{ animationDelay: "0.4s" }}>
-              <div className="feature-icon"><Trophy className="h-5 w-5" /></div>
-              <div><div className="feature-title">Streaks & Achievements</div><div className="feature-desc">Stay motivated with daily goals</div></div>
-            </div>
-            <div className="hero-feature animate-slide-in" style={{ animationDelay: "0.6s" }}>
-              <div className="feature-icon"><Zap className="h-5 w-5" /></div>
-              <div><div className="feature-title">Smart Recommendations</div><div className="feature-desc">Know what to practice next, based on your progress</div></div>
-            </div>
-          </div>
-
-          <div className="stats-ticker">
-            <div className="stat-item"><Rocket className="h-4 w-4" /><span>50+ Problems</span></div>
-            <div className="stat-item"><BookOpen className="h-4 w-4" /><span>15 Topics</span></div>
-            <div className="stat-item"><UserIcon className="h-4 w-4" /><span>Free Forever</span></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mascot - between panels */}
-      <div className="mascot-divider">
-        <Mascot mood={mascotMood} isLoading={isLoading} />
-      </div>
-
-      {/* Right - Auth Form */}
-      <div className="auth-panel">
-        <div className="auth-container" onFocus={onFormFocus} onBlur={onFormBlur}>
-          <div className="text-center mb-6 lg:hidden">
-            <h1 className="text-3xl font-bold text-primary flex items-center justify-center gap-2 mb-2">
-              <Brain className="h-8 w-8" />Prodify
+    <div className="grid min-h-[100dvh] bg-background lg:grid-cols-2">
+      {/* Left: what Prodify is (large screens only) */}
+      <aside className="relative hidden flex-col justify-between overflow-hidden border-r bg-dots p-10 lg:flex xl:p-14">
+        <Logo />
+        <div className="max-w-lg space-y-8">
+          <div className="space-y-3">
+            <p className="eyebrow">Daily DSA practice</p>
+            <h1 className="text-4xl font-semibold leading-tight tracking-tight">
+              One problem a day.<br />Every day.
             </h1>
-            <p className="text-muted-foreground text-sm">Your AI-Powered Study Companion</p>
+            <p className="text-muted-foreground">
+              Solve problems in a real code editor, keep your streak alive, and plan your interview prep in one place.
+            </p>
           </div>
+          <TerminalDemo />
+          <ul className="space-y-3 text-sm">
+            {FEATURES.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-3 text-muted-foreground">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-card">
+                  <Icon className="h-3.5 w-3.5 text-primary" />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <p className="font-mono text-xs text-muted-foreground">50+ problems · 15 topics · free</p>
+      </aside>
 
-          <Card className="auth-card">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-2xl font-bold">
-                {isDone ? "You're In!" : tab === "signup" ? "Create your account" : "Welcome Back"}
-              </CardTitle>
-              <CardDescription>
-                {isDone ? "Redirecting to your dashboard..." : tab === "signup" ? "Start your journey to master DSA" : "Continue your journey to master DSA"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={tab} className="w-full" onValueChange={handleTabChange}>
-                <TabsList className="grid w-full grid-cols-2 mb-6 h-11">
-                  <TabsTrigger value="login" className="text-sm font-medium" disabled={isDone}>Login</TabsTrigger>
-                  <TabsTrigger value="signup" className="text-sm font-medium" disabled={isDone}>Sign Up</TabsTrigger>
-                </TabsList>
+      {/* Right: the form */}
+      <main className="flex items-center justify-center px-5 py-10 sm:px-10">
+        <div className="w-full max-w-sm">
+          <div className="mb-10 lg:hidden"><Logo /></div>
 
-                {/* LOGIN TAB */}
-                <TabsContent value="login" className="animate-fade-in">
-                  {errorAlert}
-                  {loginMode === "password" ? (
-                    <form onSubmit={handlePasswordLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <div className="relative group">
-                          <Mail className="input-icon" />
-                          <Input id="email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
-                            value={loginData.email} onChange={(e) => { clearError(); setLoginData({ ...loginData, email: e.target.value }); }} required disabled={isLoading || isDone} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="password">Password</Label>
-                          <button type="button" className="text-xs text-primary hover:underline" onClick={switchToOtpLogin}>Forgot password?</button>
-                        </div>
-                        <PasswordInput id="password" placeholder="Enter your password" autoComplete="current-password"
-                          value={loginData.password} onChange={(v) => { clearError(); setLoginData({ ...loginData, password: v }); }} disabled={isLoading || isDone} />
-                      </div>
-                      <Button type="submit" className="auth-button" disabled={isLoading || isDone}>
-                        {isLoading ? <><span className="spinner" /> Logging in...</> : "Login to Dashboard"}
-                      </Button>
-                      <button type="button" className="alt-auth-link" onClick={switchToOtpLogin}>
-                        <KeyRound className="h-3.5 w-3.5" /> Login with an email code instead
-                      </button>
-                    </form>
-                  ) : loginOtpStep === "email" ? (
-                    <form onSubmit={handleSendLoginOtp} className="space-y-4 animate-fade-in">
-                      <p className="text-sm text-muted-foreground text-center">We'll email you a 6-digit code. No password needed.</p>
-                      <div className="space-y-2">
-                        <Label htmlFor="otp-email">Email</Label>
-                        <div className="relative group">
-                          <Mail className="input-icon" />
-                          <Input id="otp-email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
-                            value={loginOtpEmail} onChange={(e) => { clearError(); setLoginOtpEmail(e.target.value); }} required disabled={isLoading} />
-                        </div>
-                      </div>
-                      <Button type="submit" className="auth-button" disabled={isLoading}>
-                        {isLoading ? <><span className="spinner" /> Sending...</> : "Send Code"}
-                      </Button>
-                      <button type="button" className="alt-auth-link" onClick={() => { setLoginMode("password"); setError(""); setLoginOtpStep("email"); }}>
-                        <Lock className="h-3.5 w-3.5" /> Login with password instead
-                      </button>
-                    </form>
-                  ) : (
-                    <form onSubmit={(e) => { e.preventDefault(); verifyLoginOtp(loginOtp); }} className="space-y-5 animate-fade-in">
-                      <button type="button" className="back-link" onClick={() => { setLoginOtpStep("email"); setError(""); setLoginOtp(""); }}>
-                        <ArrowLeft className="h-3.5 w-3.5" /> Change email
-                      </button>
-                      <div className="otp-header">
-                        <div className="otp-icon-wrapper"><Mail className="h-6 w-6 text-primary" /></div>
-                        <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
-                        <p className="font-semibold break-all">{loginOtpEmail}</p>
-                      </div>
-                      <OtpBoxes value={loginOtp} onChange={(v) => { clearError(); setLoginOtp(v); }} onComplete={verifyLoginOtp} disabled={isLoading || isDone} />
-                      <Button type="submit" className="auth-button" disabled={isLoading || isDone || loginOtp.length !== 6}>
-                        {isLoading ? <><span className="spinner" /> Verifying...</> : "Verify & Login"}
-                      </Button>
-                      {resendLine(handleResendLoginOtp)}
-                    </form>
+          <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+
+          <Tabs value={tab} className="mt-6 w-full" onValueChange={handleTabChange}>
+            <TabsList className="mb-6 grid w-full grid-cols-2">
+              <TabsTrigger value="login" disabled={isDone}>Log in</TabsTrigger>
+              <TabsTrigger value="signup" disabled={isDone}>Sign up</TabsTrigger>
+            </TabsList>
+
+            {/* LOG IN */}
+            <TabsContent value="login" className="mt-0">
+              {errorAlert}
+              {loginMode === "password" ? (
+                <form onSubmit={handlePasswordLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" placeholder="you@example.com" autoComplete="email"
+                      value={loginData.email} onChange={(e) => { clearError(); setLoginData({ ...loginData, email: e.target.value }); }}
+                      required disabled={isLoading || isDone} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={switchToOtpLogin}>Forgot password?</button>
+                    </div>
+                    <PasswordInput id="password" placeholder="Your password" autoComplete="current-password"
+                      value={loginData.password} onChange={(v) => { clearError(); setLoginData({ ...loginData, password: v }); }} disabled={isLoading || isDone} />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading || isDone}>
+                    {isLoading || isDone ? <><Spinner /> {isDone ? "Opening dashboard..." : "Logging in..."}</> : "Log in"}
+                  </Button>
+                  <button type="button" className="w-full text-center text-sm text-muted-foreground hover:text-foreground" onClick={switchToOtpLogin}>
+                    Email me a login code instead
+                  </button>
+                </form>
+              ) : loginOtpStep === "email" ? (
+                <form onSubmit={handleSendLoginOtp} className="space-y-4">
+                  <p className="text-sm text-muted-foreground">We'll email you a 6-digit code. No password needed.</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-email">Email</Label>
+                    <Input id="otp-email" type="email" placeholder="you@example.com" autoComplete="email"
+                      value={loginOtpEmail} onChange={(e) => { clearError(); setLoginOtpEmail(e.target.value); }} required disabled={isLoading} />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? <><Spinner /> Sending...</> : "Send code"}
+                  </Button>
+                  <button type="button" className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => { setLoginMode("password"); setError(""); setLoginOtpStep("email"); }}>
+                    Log in with a password instead
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={(e) => { e.preventDefault(); verifyLoginOtp(loginOtp); }} className="space-y-5">
+                  {backLink("Change email", () => { setLoginOtpStep("email"); setError(""); setLoginOtp(""); })}
+                  {codeHeader(loginOtpEmail)}
+                  <div className="flex justify-center">
+                    <OtpBoxes value={loginOtp} onChange={(v) => { clearError(); setLoginOtp(v); }} onComplete={verifyLoginOtp} disabled={isLoading || isDone} />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading || isDone || loginOtp.length !== 6}>
+                    {isLoading || isDone ? <><Spinner /> {isDone ? "Opening dashboard..." : "Verifying..."}</> : "Verify and log in"}
+                  </Button>
+                  {resendLine(handleResendLoginOtp)}
+                </form>
+              )}
+            </TabsContent>
+
+            {/* SIGN UP */}
+            <TabsContent value="signup" className="mt-0">
+              {errorAlert}
+              {signupStep === "form" ? (
+                <form onSubmit={handleSendSignupOtp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Name</Label>
+                    <Input id="signup-name" type="text" placeholder="Your full name" autoComplete="name"
+                      value={signupData.name} onChange={(e) => { clearError(); setSignupData({ ...signupData, name: e.target.value }); }} required disabled={isLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input id="signup-email" type="email" placeholder="you@example.com" autoComplete="email"
+                      value={signupData.email} onChange={(e) => { clearError(); setSignupData({ ...signupData, email: e.target.value }); }} required disabled={isLoading} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <PasswordInput id="signup-password" placeholder="8+ characters" autoComplete="new-password"
+                        value={signupData.password} onChange={(v) => { clearError(); setSignupData({ ...signupData, password: v }); }} disabled={isLoading} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-confirm-password">Confirm</Label>
+                      <PasswordInput id="signup-confirm-password" placeholder="Repeat it" autoComplete="new-password"
+                        value={signupData.confirmPassword} onChange={(v) => { clearError(); setSignupData({ ...signupData, confirmPassword: v }); }} disabled={isLoading} />
+                    </div>
+                  </div>
+                  {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
+                    <p className="text-xs text-destructive">Passwords don't match yet.</p>
                   )}
-                </TabsContent>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? <><Spinner /> Sending code...</> : "Send code"}
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">We'll email you a code to confirm your address.</p>
+                </form>
+              ) : (
+                <form onSubmit={(e) => { e.preventDefault(); verifySignup(signupOtp); }} className="space-y-5">
+                  {backLink("Edit details", () => { setSignupStep("form"); setError(""); setSignupOtp(""); })}
+                  {codeHeader(signupData.email)}
+                  <div className="flex justify-center">
+                    <OtpBoxes value={signupOtp} onChange={(v) => { clearError(); setSignupOtp(v); }} onComplete={verifySignup} disabled={isLoading || isDone} />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading || isDone || signupOtp.length !== 6}>
+                    {isLoading || isDone ? <><Spinner /> {isDone ? "Opening dashboard..." : "Creating account..."}</> : "Verify and create account"}
+                  </Button>
+                  {resendLine(handleResendSignupOtp)}
+                </form>
+              )}
+            </TabsContent>
+          </Tabs>
 
-                {/* SIGNUP TAB */}
-                <TabsContent value="signup" className="animate-fade-in">
-                  {errorAlert}
-                  {signupStep === "form" ? (
-                    <form onSubmit={handleSendSignupOtp} className="space-y-3.5">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="signup-name">Full Name</Label>
-                        <div className="relative group"><UserIcon className="input-icon" />
-                          <Input id="signup-name" type="text" placeholder="Enter your full name" className="auth-input" autoComplete="name"
-                            value={signupData.name} onChange={(e) => { clearError(); setSignupData({ ...signupData, name: e.target.value }); }} required disabled={isLoading} />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="signup-email">Email</Label>
-                        <div className="relative group"><Mail className="input-icon" />
-                          <Input id="signup-email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
-                            value={signupData.email} onChange={(e) => { clearError(); setSignupData({ ...signupData, email: e.target.value }); }} required disabled={isLoading} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="signup-password">Password</Label>
-                          <PasswordInput id="signup-password" placeholder="Min 8 chars" autoComplete="new-password"
-                            value={signupData.password} onChange={(v) => { clearError(); setSignupData({ ...signupData, password: v }); }} disabled={isLoading} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="signup-confirm-password">Confirm</Label>
-                          <PasswordInput id="signup-confirm-password" placeholder="Re-enter" autoComplete="new-password"
-                            value={signupData.confirmPassword} onChange={(v) => { clearError(); setSignupData({ ...signupData, confirmPassword: v }); }} disabled={isLoading} />
-                        </div>
-                      </div>
-                      {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
-                        <p className="text-xs text-destructive">Passwords don't match yet.</p>
-                      )}
-                      <Button type="submit" className="auth-button" disabled={isLoading}>
-                        {isLoading ? <><span className="spinner" /> Sending code...</> : <><Sparkles className="h-4 w-4" /> Send Code & Verify Email</>}
-                      </Button>
-                    </form>
-                  ) : (
-                    <form onSubmit={(e) => { e.preventDefault(); verifySignup(signupOtp); }} className="space-y-5 animate-fade-in">
-                      <button type="button" className="back-link" onClick={() => { setSignupStep("form"); setError(""); setSignupOtp(""); setMascotMood("typing"); }}>
-                        <ArrowLeft className="h-3.5 w-3.5" /> Edit details
-                      </button>
-                      <div className="otp-header">
-                        <div className="otp-icon-wrapper animate-bounce-slow"><Mail className="h-6 w-6 text-primary" /></div>
-                        <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
-                        <p className="font-semibold break-all">{signupData.email}</p>
-                      </div>
-                      <OtpBoxes value={signupOtp} onChange={(v) => { clearError(); setSignupOtp(v); }} onComplete={verifySignup} disabled={isLoading || isDone} />
-                      <Button type="submit" className="auth-button" disabled={isLoading || isDone || signupOtp.length !== 6}>
-                        {isLoading ? <><span className="spinner" /> Creating Account...</> : <><Rocket className="h-4 w-4" /> Verify & Create Account</>}
-                      </Button>
-                      {resendLine(handleResendSignupOtp)}
-                    </form>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-          <div className="text-center mt-4 text-xs text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            By continuing, you agree to our Terms of Service and Privacy Policy.
+          </p>
           {import.meta.env.DEV && (
             // Only shown by `npm run dev`: the local backend uses the practice database
-            <p className="text-center mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-center text-xs text-muted-foreground">
               Local test copy: accounts here are separate from the live site.
             </p>
           )}
         </div>
-      </div>
-
-      <style>{`
-        .login-page { min-height:100vh; display:flex; overflow:hidden; background:hsl(var(--background)); position:relative; }
-
-        /* HERO */
-        .hero-panel { display:none; width:50%; position:relative; background:linear-gradient(135deg,#f97316,#ea580c,#c2410c); overflow:hidden; }
-        @media(min-width:1024px){.hero-panel{display:flex;}}
-        .hero-content { position:relative; z-index:10; display:flex; flex-direction:column; justify-content:center; padding:3rem; color:white; width:100%; }
-        .hero-badge { display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.2); backdrop-filter:blur(10px); padding:8px 16px; border-radius:999px; font-size:14px; font-weight:500; width:fit-content; margin-bottom:24px; border:1px solid rgba(255,255,255,.3); }
-        .hero-title { display:flex; align-items:center; gap:16px; font-size:3rem; font-weight:800; margin-bottom:12px; letter-spacing:-1px; }
-        .hero-subtitle { font-size:1.2rem; opacity:.9; margin-bottom:2.5rem; line-height:1.5; }
-        .hero-features { display:flex; flex-direction:column; gap:16px; margin-bottom:2.5rem; }
-        .hero-feature { display:flex; align-items:center; gap:14px; background:rgba(255,255,255,.1); backdrop-filter:blur(8px); padding:14px 18px; border-radius:12px; border:1px solid rgba(255,255,255,.15); transition:all .3s; }
-        .hero-feature:hover { background:rgba(255,255,255,.2); transform:translateX(8px); }
-        .feature-icon { width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-        .feature-title { font-weight:600; font-size:15px; }
-        .feature-desc { font-size:13px; opacity:.8; }
-        .stats-ticker { display:flex; gap:20px; padding-top:12px; border-top:1px solid rgba(255,255,255,.2); }
-        .stat-item { display:flex; align-items:center; gap:6px; font-size:13px; opacity:.85; font-weight:500; }
-
-        /* MASCOT */
-        .mascot-divider { display:none; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:50; transition:all .5s cubic-bezier(.34,1.56,.64,1); filter:drop-shadow(0 6px 16px rgba(0,0,0,.18)); }
-        @media(min-width:1024px){.mascot-divider{display:block;}}
-        .mascot-container { text-align:center; transition:all .5s; }
-        .mascot-body { width:100px; height:110px; display:flex; align-items:center; justify-content:center; margin:0 auto 6px; transition:transform .3s; }
-        .mascot-celebrate .mascot-body { animation:mascot-jump .5s ease infinite; }
-        .mascot-loading .mascot-body { animation:mascot-wobble .6s ease infinite; }
-        .mascot-speech { position:relative; background:linear-gradient(135deg,#fff,#fff5eb); padding:6px 14px; border-radius:12px; font-size:12px; font-weight:600; color:#1f2937; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,.1); border:1px solid rgba(249,115,22,.15); }
-        .speech-arrow { position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:6px solid #fff; }
-        .wing-wave { animation:wingWave .4s ease infinite alternate; transform-origin:80px 50px; }
-        @keyframes wingWave { 0%{transform:rotate(0deg)} 100%{transform:rotate(-20deg)} }
-
-        /* FLOATING */
-        .floating-shapes { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
-        .floating-shape { position:absolute; border-radius:50%; background:rgba(255,255,255,.08); animation:float-around linear infinite; }
-        .shape-0{width:60px;height:60px;border-radius:12px;transform:rotate(45deg)} .shape-1{width:40px;height:40px} .shape-2{width:80px;height:80px;border-radius:16px} .shape-3{width:30px;height:30px} .shape-4{width:50px;height:50px;border-radius:10px;transform:rotate(30deg)}
-
-        /* AUTH */
-        .auth-panel { width:100%; display:flex; align-items:center; justify-content:center; padding:2rem; }
-        @media(min-width:1024px){.auth-panel{width:50%;}}
-        .auth-container { width:100%; max-width:420px; }
-        .auth-card { border:none!important; box-shadow:0 4px 32px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.04)!important; border-radius:16px!important; overflow:hidden; }
-
-        .input-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:hsl(var(--muted-foreground)); transition:color .2s; z-index:1; }
-        .group:focus-within .input-icon { color:hsl(var(--primary)); }
-
-        .auth-input { padding-left:40px!important; height:42px!important; border-radius:10px!important; transition:all .2s!important; border:1.5px solid hsl(var(--border))!important; }
-        .auth-input:focus { border-color:hsl(var(--primary))!important; box-shadow:0 0 0 3px hsl(var(--primary)/.1)!important; }
-
-        .auth-button { width:100%; height:44px!important; border-radius:10px!important; font-weight:600!important; font-size:15px!important; background:linear-gradient(135deg,#f97316,#ea580c)!important; color:white!important; border:none!important; display:flex; align-items:center; justify-content:center; gap:8px; transition:all .3s!important; position:relative; overflow:hidden; }
-        .auth-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 20px rgba(249,115,22,.4); }
-        .auth-button:active:not(:disabled) { transform:translateY(0); }
-        .auth-button:disabled { opacity:.7; }
-
-        .alt-auth-link { width:100%; display:flex; align-items:center; justify-content:center; gap:6px; padding-top:4px; font-size:13px; color:hsl(var(--primary)); transition:all .2s; background:none; border:none; cursor:pointer; }
-        .alt-auth-link:hover { text-decoration:underline; }
-        .back-link { display:flex; align-items:center; gap:4px; font-size:13px; color:hsl(var(--muted-foreground)); background:none; border:none; cursor:pointer; transition:color .2s; }
-        .back-link:hover { color:hsl(var(--foreground)); }
-        .password-toggle { position:absolute; right:10px; top:50%; transform:translateY(-50%); color:hsl(var(--muted-foreground)); background:none; border:none; cursor:pointer; padding:4px; border-radius:6px; }
-        .password-toggle:hover { color:hsl(var(--foreground)); }
-
-        /* OTP */
-        .otp-header { text-align:center; }
-        .otp-icon-wrapper { width:56px; height:56px; border-radius:16px; background:hsl(var(--primary)/.1); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }
-
-        .error-alert { margin-bottom:16px; padding:12px; background:hsl(var(--destructive)/.08); border:1px solid hsl(var(--destructive)/.2); border-radius:10px; display:flex; align-items:center; gap:8px; color:hsl(var(--destructive)); font-size:13px; }
-        .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:white; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
-
-        /* CONFETTI */
-        .confetti-container { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:9999; overflow:hidden; }
-        .confetti-piece { position:absolute; top:-10px; width:10px; height:10px; border-radius:2px; animation:confetti-fall 3s ease-out forwards; }
-
-        /* ANIMATIONS */
-        @keyframes float-around { 0%,100%{transform:translate(0,0) rotate(0);opacity:.6} 25%{transform:translate(50px,-80px) rotate(90deg);opacity:.4} 50%{transform:translate(-30px,-160px) rotate(180deg);opacity:.8} 75%{transform:translate(60px,-80px) rotate(270deg);opacity:.5} }
-        @keyframes confetti-fall { 0%{transform:translateY(-10px) rotate(0) scale(1);opacity:1} 100%{transform:translateY(100vh) rotate(720deg) scale(.3);opacity:0} }
-        @keyframes mascot-jump { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-        @keyframes mascot-wobble { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        .animate-fade-in { animation:fadeIn .3s ease-out; }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        .animate-slide-in { animation:slideIn .5s ease-out both; }
-        @keyframes slideIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
-        .animate-shake { animation:shake .4s ease-out; }
-        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-        .animate-float { animation:floatBadge 3s ease-in-out infinite; }
-        @keyframes floatBadge { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-        .animate-pulse-slow { animation:pulseSlow 3s ease-in-out infinite; }
-        @keyframes pulseSlow { 0%,100%{opacity:1} 50%{opacity:.7} }
-        .animate-bounce-slow { animation:bounceSlow 2s ease-in-out infinite; }
-        @keyframes bounceSlow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-      `}</style>
+      </main>
     </div>
   );
 };

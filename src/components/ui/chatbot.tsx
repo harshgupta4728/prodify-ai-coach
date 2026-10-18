@@ -43,10 +43,10 @@ const SUGGESTED_QUESTIONS = [
 
 // Greeting in the coach personality picked in Settings
 const GREETINGS: Record<string, (name: string) => string> = {
-  friendly: (name) => `Hi ${name}! 😊 I'm your Prodify study buddy. What would you like help with today?`,
+  friendly: (name) => `Hi ${name}! I'm your Prodify study buddy. What would you like help with today?`,
   strict: (name) => `${name}. Let's get to work. What are you stuck on?`,
-  motivational: (name) => `Let's GO, ${name}! 🔥 Ready to crush some DSA today? What do you need?`,
-  chill: (name) => `Hey ${name} 🧘 No rush. What would you like to explore today?`,
+  motivational: (name) => `Let's GO, ${name}! Ready to crush some DSA today? What do you need?`,
+  chill: (name) => `Hey ${name}. No rush. What would you like to explore today?`,
 };
 
 const savedPersonality = () => {
@@ -105,17 +105,17 @@ export const Chatbot = ({ userData }: ChatbotProps) => {
     const responses = {
       "What are the most important questions I should solve this week?": `Based on your profile, here are my top recommendations for this week:
 
-🎯 **Priority 1: Arrays & Two Pointers**
+**Priority 1: Arrays & Two Pointers**
 - 3Sum (Medium)
 - Container With Most Water (Medium)
 - Trapping Rain Water (Hard)
 
-🎯 **Priority 2: Dynamic Programming**
+**Priority 2: Dynamic Programming**
 - Climbing Stairs (Easy)
 - House Robber (Medium)
 - Coin Change (Medium)
 
-🎯 **Priority 3: Trees & Graphs**
+**Priority 3: Trees & Graphs**
 - Binary Tree Inorder Traversal (Medium)
 - Binary Tree Level Order Traversal (Medium)
 
@@ -123,27 +123,27 @@ Focus on these patterns as they're commonly asked in interviews. Would you like 
 
       "How should I prepare for technical interviews?": `Here's your personalized interview preparation strategy:
 
-📚 **Week 1-2: Core Concepts**
+**Week 1-2: Core Concepts**
 - Master time/space complexity analysis
 - Practice implementing basic data structures
 - Focus on array, string, and linked list problems
 
-📚 **Week 3-4: Advanced Patterns**
+**Week 3-4: Advanced Patterns**
 - Two pointers and sliding window
 - Binary search variations
 - Tree and graph traversals
 
-📚 **Week 5-6: Dynamic Programming**
+**Week 5-6: Dynamic Programming**
 - Start with 1D DP problems
 - Practice memoization and tabulation
 - Focus on common patterns (knapsack, LIS, etc.)
 
-📚 **Week 7-8: Mock Interviews**
+**Week 7-8: Mock Interviews**
 - Practice with time constraints
 - Work on communication skills
 - Review system design basics
 
-💡 **Pro Tips:**
+**Pro Tips:**
 - Solve at least 2-3 problems daily
 - Focus on quality over quantity
 - Practice explaining your solutions out loud
@@ -153,7 +153,7 @@ Would you like me to create a detailed schedule for any of these phases?`,
 
       "What DSA topics should I focus on next?": `Based on your current progress, here are the topics you should prioritize:
 
-🔥 **High Priority (Interview Focus)**
+**High Priority (Interview Focus)**
 1. **Dynamic Programming** - Most commonly asked
    - Memoization vs Tabulation
    - Classic problems: Fibonacci, Climbing Stairs, Coin Change
@@ -168,7 +168,7 @@ Would you like me to create a detailed schedule for any of these phases?`,
    - AVL Trees and Red-Black Trees
    - Tree traversal variations
 
-🔥 **Medium Priority**
+**Medium Priority**
 4. **String Algorithms**
    - Pattern matching (KMP, Boyer-Moore)
    - String manipulation problems
@@ -178,7 +178,7 @@ Would you like me to create a detailed schedule for any of these phases?`,
    - Sliding window optimizations
    - Two pointers advanced patterns
 
-🔥 **Specialized Topics**
+**Specialized Topics**
 6. **System Design Basics**
    - Scalability concepts
    - Database design principles
@@ -188,42 +188,42 @@ Would you like me to create a detailed study plan for any of these topics?`,
 
       "Can you create a study plan for me?": `Here's your personalized 8-week DSA study plan:
 
-📅 **Week 1: Foundation**
+**Week 1: Foundation**
 - **Days 1-3:** Arrays, Strings, Basic Sorting
 - **Days 4-5:** Linked Lists, Stacks, Queues
 - **Days 6-7:** Practice problems and review
 
-📅 **Week 2: Two Pointers & Sliding Window**
+**Week 2: Two Pointers & Sliding Window**
 - **Days 1-3:** Two pointers technique
 - **Days 4-5:** Sliding window problems
 - **Days 6-7:** Mixed practice problems
 
-📅 **Week 3: Trees & Graphs**
+**Week 3: Trees & Graphs**
 - **Days 1-3:** Binary trees, traversals
 - **Days 4-5:** Graph algorithms (DFS/BFS)
 - **Days 6-7:** Tree and graph problems
 
-📅 **Week 4: Dynamic Programming**
+**Week 4: Dynamic Programming**
 - **Days 1-3:** 1D DP problems
 - **Days 4-5:** 2D DP problems
 - **Days 6-7:** Advanced DP patterns
 
-📅 **Week 5: Advanced Algorithms**
+**Week 5: Advanced Algorithms**
 - **Days 1-3:** Binary search variations
 - **Days 4-5:** Heap and priority queues
 - **Days 6-7:** Advanced sorting algorithms
 
-📅 **Week 6: System Design Basics**
+**Week 6: System Design Basics**
 - **Days 1-3:** Scalability concepts
 - **Days 4-5:** Database design
 - **Days 6-7:** Caching and optimization
 
-📅 **Week 7-8: Interview Preparation**
+**Week 7-8: Interview Preparation**
 - **Mock interviews and practice**
 - **Time-constrained problem solving**
 - **Communication skills practice**
 
-🎯 **Daily Goals:**
+**Daily Goals:**
 - Solve 2-3 problems daily
 - Review previous solutions
 - Practice explaining solutions
@@ -233,7 +233,7 @@ Would you like me to break down any specific week in detail?`,
 
       "What are my weak areas based on my progress?": `Based on your coding profile analysis, here are your areas for improvement:
 
-⚠️ **Areas Needing Attention:**
+**Areas Needing Attention:**
 
 1. **Dynamic Programming (Priority: HIGH)**
    - You've solved only 15% of DP problems
@@ -255,12 +255,12 @@ Would you like me to break down any specific week in detail?`,
    - Focus on: Scalability, Database design, Caching
    - Start with basic system design principles
 
-✅ **Your Strengths:**
+**Your Strengths:**
 - Arrays and Strings (85% success rate)
 - Basic Sorting Algorithms (90% success rate)
 - Two Pointers technique (80% success rate)
 
-🎯 **Action Plan:**
+**Action Plan:**
 1. Dedicate 60% of your time to DP problems
 2. Spend 25% on graph algorithms
 3. Use remaining 15% for advanced tree concepts
@@ -270,7 +270,7 @@ Would you like me to create a focused study plan for any of these weak areas?`,
 
       "How can I improve my problem-solving speed?": `Here's your personalized strategy to improve problem-solving speed:
 
-⚡ **Immediate Techniques (Week 1-2):**
+**Immediate Techniques (Week 1-2):**
 
 1. **Pattern Recognition**
    - Learn to identify problem patterns quickly
@@ -287,7 +287,7 @@ Would you like me to create a focused study plan for any of these weak areas?`,
    - Practice writing boilerplate code quickly
    - Memorize standard implementations
 
-⚡ **Advanced Techniques (Week 3-4):**
+**Advanced Techniques (Week 3-4):**
 
 4. **Mental Models**
    - Visualize problems before coding
@@ -299,7 +299,7 @@ Would you like me to create a focused study plan for any of these weak areas?`,
    - Practice space-time trade-offs
    - Master common optimization techniques
 
-⚡ **Speed Drills (Week 5-6):**
+**Speed Drills (Week 5-6):**
 
 6. **Daily Speed Challenges**
    - Solve 3 easy problems in 30 minutes
@@ -311,12 +311,12 @@ Would you like me to create a focused study plan for any of these weak areas?`,
    - Practice explaining while coding
    - Get feedback on communication
 
-🎯 **Daily Routine:**
+**Daily Routine:**
 - **Morning:** 2-3 speed drills (easy problems)
 - **Afternoon:** 1-2 medium problems with full analysis
 - **Evening:** Review and optimize previous solutions
 
-💡 **Pro Tips:**
+**Pro Tips:**
 - Use keyboard shortcuts effectively
 - Practice typing code without thinking
 - Learn to debug quickly
@@ -386,12 +386,15 @@ Tap a suggestion below, or ask about one of these!`;
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
         <Button
+          variant="secondary"
           onClick={() => setIsOpen(true)}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg rounded-full h-14 w-14 p-0"
+          aria-label="Open study coach"
+          className="h-11 w-11 sm:w-auto rounded-full p-0 sm:px-4 gap-2 shadow-lg shadow-black/40"
         >
-          <MessageCircle className="h-6 w-6" />
+          <MessageCircle className="h-4 w-4 text-primary" />
+          <span className="hidden sm:inline">Ask coach</span>
         </Button>
       </div>
     );
@@ -400,36 +403,35 @@ Tap a suggestion below, or ask about one of these!`;
   return (
     <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
       <Card className={cn(
-        "w-[calc(100vw-2rem)] sm:w-96 h-[min(600px,calc(100dvh-2rem))] flex flex-col shadow-2xl border bg-card",
-        isMinimized && "h-16"
+        "w-[calc(100vw-2rem)] sm:w-96 h-[min(600px,calc(100dvh-2rem))] flex flex-col shadow-2xl shadow-black/60 border bg-card",
+        isMinimized && "h-14"
       )}>
-        <CardHeader className={cn(
-          "bg-primary text-primary-foreground p-4 rounded-t-lg",
-          isMinimized && "rounded-lg"
-        )}>
+        <CardHeader className="px-4 py-0 h-14 shrink-0 justify-center border-b">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <Brain className="h-4 w-4" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-md border bg-muted flex items-center justify-center">
+                <Brain className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">Prodify AI Mentor</CardTitle>
-                <p className="text-xs text-white/80">Quick study guidance</p>
+                <CardTitle className="text-sm font-semibold">Study coach</CardTitle>
+                <p className="text-xs text-muted-foreground">Quick study guidance</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/20"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                aria-label={isMinimized ? "Expand" : "Minimize"}
                 onClick={() => setIsMinimized(!isMinimized)}
               >
                 {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/20"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                aria-label="Close"
                 onClick={() => setIsOpen(false)}
               >
                 <X className="h-4 w-4" />
@@ -451,43 +453,35 @@ Tap a suggestion below, or ask about one of these!`;
                     )}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-primary" />
+                      <div className="w-7 h-7 rounded-md border bg-muted flex items-center justify-center flex-shrink-0">
+                        <Bot className="h-4 w-4 text-muted-foreground" />
                       </div>
                     )}
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg p-3",
+                        "max-w-[80%] rounded-lg px-3 py-2",
                         message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground'
+                          ? 'bg-primary/15 border border-primary/20 text-foreground'
+                          : 'bg-muted border text-foreground'
                       )}
                     >
                       <div className="whitespace-pre-wrap text-sm">{renderFormatted(message.content)}</div>
-                      <div className={cn(
-                        "text-xs mt-1",
-                        message.sender === 'user' ? 'text-white/70' : 'text-muted-foreground'
-                      )}>
+                      <div className="font-mono text-[10px] mt-1 text-muted-foreground">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    {message.sender === 'user' && (
-                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                        <User className="h-4 w-4 text-white" />
-                      </div>
-                    )}
                   </div>
                 ))}
                 {isLoading && (
                   <div className="flex gap-3 justify-start">
-                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary" />
+                    <div className="w-7 h-7 rounded-md border bg-muted flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div className="bg-muted rounded-lg p-3">
+                    <div className="bg-muted border rounded-lg px-3 py-3">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -496,21 +490,18 @@ Tap a suggestion below, or ask about one of these!`;
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t">
-              <div className="mb-3">
-                <p className="text-xs text-muted-foreground mb-2">Suggested questions:</p>
-                <div className="flex flex-wrap gap-1">
-                  {SUGGESTED_QUESTIONS.slice(0, 3).map((question, index) => (
-                    <Badge
-                      key={index}
-                      variant="outline"
-                      className="text-xs cursor-pointer hover:bg-primary/5 hover:border-primary/20"
-                      onClick={() => handleSuggestedQuestion(question)}
-                    >
-                      {question.length > 30 ? question.substring(0, 30) + '...' : question}
-                    </Badge>
-                  ))}
-                </div>
+            <div className="p-3 border-t">
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {SUGGESTED_QUESTIONS.slice(0, 3).map((question, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className="chip hover:text-foreground hover:border-input transition-colors"
+                    onClick={() => handleSuggestedQuestion(question)}
+                  >
+                    {question.length > 30 ? question.substring(0, 30) + '...' : question}
+                  </button>
+                ))}
               </div>
               <div className="flex gap-2">
                 <Input
@@ -524,8 +515,8 @@ Tap a suggestion below, or ask about one of these!`;
                 <Button
                   onClick={() => handleSendMessage()}
                   disabled={!inputValue.trim() || isLoading}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  size="sm"
+                  size="icon"
+                  aria-label="Send"
                 >
                   <Send className="h-4 w-4" />
                 </Button>

@@ -1,15 +1,16 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, type ReactNode } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Edit, Camera, Save, X } from "lucide-react";
+import { Camera, Loader2, Pencil, Save, Trash2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/common/PageHeader";
 import { apiService } from "@/lib/api";
 import { config } from "@/lib/config";
-import { safeExternalUrl } from "@/lib/utils";
+import { cn, safeExternalUrl } from "@/lib/utils";
 
 interface ProfileSectionProps {
   userData: {
@@ -25,6 +26,26 @@ interface ProfileSectionProps {
   };
   onProfileUpdate: (updatedUser: any) => void;
 }
+
+// One profile field: a form label while editing, a small mono label above the saved value otherwise
+const Field = ({
+  id, label, isEditing, className, children,
+}: {
+  id: string;
+  label: string;
+  isEditing: boolean;
+  className?: string;
+  children: ReactNode;
+}) => (
+  <div className={cn("min-w-0 space-y-2", className)}>
+    {isEditing ? <Label htmlFor={id}>{label}</Label> : <p className="eyebrow">{label}</p>}
+    {children}
+  </div>
+);
+
+const FieldValue = ({ value }: { value: string }) => (
+  <p className="break-words text-sm">{value || <span className="text-muted-foreground">Not specified</span>}</p>
+);
 
 export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProps) => {
   const { toast } = useToast();
@@ -127,104 +148,118 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
     }
   };
 
+  // Up to two letters, same as the sidebar
+  const initials = userData.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?";
+
   return (
-    <div className="space-y-6">
-      {/* Profile Header */}
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-2xl">Profile</CardTitle>
-            <CardDescription>Manage your personal information and preferences</CardDescription>
-          </div>
-          <Button
-            variant={isEditing ? "outline" : "default"}
-            onClick={() => (isEditing ? handleCancel() : setIsEditing(true))}
-            disabled={isLoading}
-          >
-            {isEditing ? <X className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
-            {isEditing ? "Cancel" : "Edit Profile"}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Profile Picture & Basic Info */}
-          <div className="flex flex-col sm:flex-row items-start gap-6">
-            <div className="relative">
-              <Avatar className="h-24 w-24">
-                <AvatarImage 
-                  src={userData.profilePicture ? `${config.apiBaseUrl.replace('/api', '')}${userData.profilePicture}` : ""} 
-                  alt={userData.name} 
-                />
-                <AvatarFallback className="text-lg">
-                  {userData.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-                             {isEditing && (
-                 <div className="absolute -bottom-2 -right-2 flex gap-1">
-                   <Button
-                     size="sm"
-                     variant="outline"
-                     className="h-8 w-8 rounded-full p-0"
-                     disabled={isUploading}
-                     onClick={() => {
-                       const input = document.createElement('input');
-                       input.type = 'file';
-                       input.accept = 'image/jpeg,image/png,image/webp,image/gif';
-                       input.onchange = (e) => {
-                         const target = e.target as HTMLInputElement;
-                         const file = target.files?.[0];
-                         if (file) {
-                           handleProfilePictureUpload(file);
-                         }
-                       };
-                       input.click();
-                     }}
-                     title="Upload new photo"
-                   >
-                     {isUploading ? (
-                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                     ) : (
-                       <Camera className="h-4 w-4" />
-                     )}
-                   </Button>
-                   {userData.profilePicture && (
-                     <Button
-                       size="sm"
-                       variant="outline"
-                       className="h-8 w-8 rounded-full p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                       disabled={isUploading}
-                       onClick={handleRemoveProfilePicture}
-                       title="Remove photo"
-                     >
-                       <X className="h-4 w-4" />
-                     </Button>
-                   )}
-                 </div>
-               )}
+    <div className="max-w-3xl space-y-6">
+      <PageHeader
+        title="Profile"
+        description="Manage your personal information and preferences"
+        actions={
+          isEditing ? (
+            <>
+              <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
+                <X className="h-4 w-4" /> Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isLoading}>
+                <Save className="h-4 w-4" />
+                {isLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" onClick={() => setIsEditing(true)} disabled={isLoading}>
+              <Pencil className="h-4 w-4" /> Edit Profile
+            </Button>
+          )
+        }
+      />
+
+      {/* Identity: photo, name, email and bio */}
+      <Card className="p-5">
+        <div className="flex items-start gap-4">
+          <Avatar className="h-16 w-16 border sm:h-20 sm:w-20">
+            <AvatarImage
+              src={userData.profilePicture ? `${config.apiBaseUrl.replace('/api', '')}${userData.profilePicture}` : ""}
+              alt={userData.name}
+            />
+            <AvatarFallback className="font-mono text-lg font-medium">{initials}</AvatarFallback>
+          </Avatar>
+
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="min-w-0">
+              <h2 className="break-words text-lg font-semibold leading-tight">{userData.name}</h2>
+              <p className="mt-1 break-all font-mono text-sm text-muted-foreground">{userData.email}</p>
             </div>
-            
-            <div className="flex-1 w-full space-y-4">
+
+            {isEditing ? (
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                {isEditing ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isUploading}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/jpeg,image/png,image/webp,image/gif';
+                      input.onchange = (e) => {
+                        const target = e.target as HTMLInputElement;
+                        const file = target.files?.[0];
+                        if (file) {
+                          handleProfilePictureUpload(file);
+                        }
+                      };
+                      input.click();
+                    }}
+                    title="Upload new photo"
+                  >
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    Upload new photo
+                  </Button>
+                  {userData.profilePicture && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={isUploading}
+                      onClick={handleRemoveProfilePicture}
+                      title="Remove photo"
+                    >
+                      <Trash2 className="h-4 w-4" /> Remove photo
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF, up to 5 MB.</p>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                {profileData.bio || "No bio added yet."}
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Details: two columns on wider screens, one on phones */}
+      <Card>
+        <CardHeader className="p-5">
+          <CardTitle className="text-base font-semibold">Details</CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-0">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+            {isEditing && (
+              <>
+                <Field id="name" label="Full Name" isEditing className="sm:col-span-2">
                   <Input
                     id="name"
                     value={profileData.name}
                     onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
                     disabled={isLoading}
                   />
-                ) : (
-                  <p className="text-lg font-medium">{userData.name}</p>
-                )}
-              </div>
+                </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <p className="text-muted-foreground">{userData.email}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio / About Me</Label>
-                {isEditing ? (
+                <Field id="bio" label="Bio / About Me" isEditing className="sm:col-span-2">
                   <Textarea
                     id="bio"
                     placeholder="Tell us about yourself..."
@@ -233,19 +268,11 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                     disabled={isLoading}
                     rows={3}
                   />
-                ) : (
-                  <div className="text-muted-foreground whitespace-pre-wrap">
-                    {profileData.bio || "No bio added yet."}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+                </Field>
+              </>
+            )}
 
-          {/* Academic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="university">University / College</Label>
+            <Field id="university" label="University / College" isEditing={isEditing}>
               {isEditing ? (
                 <Input
                   id="university"
@@ -255,14 +282,11 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                   disabled={isLoading}
                 />
               ) : (
-                <p className="text-muted-foreground">
-                  {profileData.university || "Not specified"}
-                </p>
+                <FieldValue value={profileData.university} />
               )}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="major">Major / Field of Study</Label>
+            <Field id="major" label="Major / Field of Study" isEditing={isEditing}>
               {isEditing ? (
                 <Input
                   id="major"
@@ -272,14 +296,11 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                   disabled={isLoading}
                 />
               ) : (
-                <p className="text-muted-foreground">
-                  {profileData.major || "Not specified"}
-                </p>
+                <FieldValue value={profileData.major} />
               )}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="graduationYear">Expected Graduation Year</Label>
+            <Field id="graduationYear" label="Expected Graduation Year" isEditing={isEditing}>
               {isEditing ? (
                 <Input
                   id="graduationYear"
@@ -289,14 +310,11 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                   disabled={isLoading}
                 />
               ) : (
-                <p className="text-muted-foreground">
-                  {profileData.graduationYear || "Not specified"}
-                </p>
+                <FieldValue value={profileData.graduationYear} />
               )}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+            <Field id="location" label="Location" isEditing={isEditing}>
               {isEditing ? (
                 <Input
                   id="location"
@@ -306,54 +324,42 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                   disabled={isLoading}
                 />
               ) : (
-                <p className="text-muted-foreground">
-                  {profileData.location || "Not specified"}
+                <FieldValue value={profileData.location} />
+              )}
+            </Field>
+
+            <Field id="portfolio" label="Personal Portfolio / Website" isEditing={isEditing} className="sm:col-span-2">
+              {isEditing ? (
+                <Input
+                  id="portfolio"
+                  type="url"
+                  placeholder="https://your-portfolio.com"
+                  value={profileData.portfolio}
+                  onChange={(e) => setProfileData({ ...profileData, portfolio: e.target.value })}
+                  disabled={isLoading}
+                />
+              ) : (
+                <p className="break-all text-sm">
+                  {safeExternalUrl(profileData.portfolio) ? (
+                    <a
+                      href={safeExternalUrl(profileData.portfolio)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-primary underline-offset-4 hover:underline"
+                    >
+                      {profileData.portfolio}
+                    </a>
+                  ) : profileData.portfolio ? (
+                    profileData.portfolio
+                  ) : (
+                    <span className="text-muted-foreground">Not specified</span>
+                  )}
                 </p>
               )}
-            </div>
+            </Field>
           </div>
-
-          {/* Portfolio Link */}
-          <div className="space-y-2">
-            <Label htmlFor="portfolio">Personal Portfolio / Website</Label>
-            {isEditing ? (
-              <Input
-                id="portfolio"
-                type="url"
-                placeholder="https://your-portfolio.com"
-                value={profileData.portfolio}
-                onChange={(e) => setProfileData({ ...profileData, portfolio: e.target.value })}
-                disabled={isLoading}
-              />
-            ) : (
-              <p className="text-muted-foreground">
-                {safeExternalUrl(profileData.portfolio) ? (
-                  <a href={safeExternalUrl(profileData.portfolio)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    {profileData.portfolio}
-                  </a>
-                ) : profileData.portfolio ? (
-                  profileData.portfolio
-                ) : (
-                  "Not specified"
-                )}
-              </p>
-            )}
-          </div>
-
-          {/* Save Button */}
-          {isEditing && (
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleSave} disabled={isLoading}>
-                <Save className="h-4 w-4 mr-2" />
-                {isLoading ? "Saving..." : "Save Changes"}
-              </Button>
-              <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
-                Cancel
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
   );
-}; 
+};

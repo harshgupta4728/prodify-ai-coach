@@ -29,8 +29,10 @@ import {
   Trophy,
   RotateCcw,
   Copy,
-  PartyPopper,
 } from "lucide-react";
+import { DifficultyBadge } from "@/components/common/DifficultyBadge";
+import { EmptyState } from "@/components/common/EmptyState";
+import { TAB_STRIP, TAB_STRIP_TRIGGER } from "@/components/common/tabStrip";
 
 // "10^5" / "2^31", plus the same limits whose "^" was lost when the problems were imported ("105", "231")
 const POWER = /\b(?:(10|2)\^(\d+)|10([3-9])|2(3[12]))\b/g;
@@ -60,15 +62,6 @@ interface ProblemInterfaceProps {
   onBack?: () => void;
   onProblemSolved?: () => void;
 }
-
-const getDifficultyColor = (difficulty: string) => {
-  switch (difficulty) {
-    case 'easy': return 'text-green-600 bg-green-100';
-    case 'medium': return 'text-yellow-600 bg-yellow-100';
-    case 'hard': return 'text-red-600 bg-red-100';
-    default: return 'text-gray-600 bg-gray-100';
-  }
-};
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
@@ -164,7 +157,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
       } else {
         toast({
           title: "No topic selected",
-          description: "Please select a topic from the Topic Progress page.",
+          description: "Pick a topic on the Topics page first.",
           variant: "destructive",
         });
       }
@@ -318,7 +311,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
         });
         setStreak(response.progress);
         toast({
-          title: "Accepted! 🎉",
+          title: "Accepted",
           description: `Today's problem solved. Daily streak: ${response.progress?.todaysProblemStreak ?? 1} day${response.progress?.todaysProblemStreak === 1 ? '' : 's'}.`,
         });
       } else {
@@ -330,7 +323,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
           notes: ""
         });
         toast({
-          title: "Accepted! 🎉",
+          title: "Accepted",
           description: `All test cases passed. "${problem.title}" is solved.`,
         });
       }
@@ -401,11 +394,8 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[50vh]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading problem...</p>
-        </div>
+      <div className="flex items-center justify-center gap-2 h-full min-h-[50vh] text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading problem...
       </div>
     );
   }
@@ -414,7 +404,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
     return (
       <div className="flex items-center justify-center h-full min-h-[50vh] p-4">
         <div className="text-center space-y-3">
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {loadFailed ? "Couldn't load the problem. Check your connection and try again." : "No problem found."}
           </p>
           <div className="flex justify-center gap-2">
@@ -424,8 +414,8 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
               </Button>
             )}
             {onBack && (
-              <Button variant="outline" onClick={onBack} className="gap-2">
-                <ArrowLeft className="h-4 w-4" /> Go Back
+              <Button variant="secondary" onClick={onBack} className="gap-2">
+                <ArrowLeft className="h-4 w-4" /> Go back
               </Button>
             )}
           </div>
@@ -439,25 +429,25 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
   // ═══ Main Layout ═══
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
 
       {/* ═══ TOP TOOLBAR ═══ */}
-      <div className="min-h-12 flex flex-wrap items-center justify-between gap-2 px-2 sm:px-4 py-1.5 border-b bg-background shrink-0">
+      <div className="min-h-12 flex flex-wrap items-center justify-between gap-2 px-2 sm:px-3 py-1.5 border-b shrink-0">
         {/* Left: Back + Title + Difficulty */}
         <div className="flex items-center gap-2 min-w-0">
           {onBack && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack} aria-label="Back">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={onBack} aria-label="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
 
           {/* Problem Navigation (prev/next) */}
           {problems.length > 1 && (
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div className="flex items-center gap-0.5 shrink-0 rounded-md border px-0.5">
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevProblem} disabled={currentProblemIndex === 0} aria-label="Previous problem">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs text-muted-foreground w-10 text-center">
+              <span className="font-mono text-xs text-muted-foreground w-10 text-center tabular-nums">
                 {currentProblemIndex + 1}/{problems.length}
               </span>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextProblem} disabled={!hasNext} aria-label="Next problem">
@@ -467,15 +457,11 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
           )}
 
           <div className="flex items-center gap-2 min-w-0">
-            {isTodaysProblem && (
-              <Badge className="bg-primary/10 text-primary text-[10px] shrink-0">Daily</Badge>
-            )}
-            <h2 className="font-semibold text-sm truncate max-w-[160px] sm:max-w-[280px]">{problem.title}</h2>
-            <Badge className={`${getDifficultyColor(problem.difficulty)} text-[10px] shrink-0`}>
-              {problem.difficulty?.charAt(0).toUpperCase() + problem.difficulty?.slice(1)}
-            </Badge>
+            {isTodaysProblem && <Badge className="shrink-0">Daily</Badge>}
+            <h2 className="font-semibold text-sm truncate max-w-[160px] sm:max-w-[320px]">{problem.title}</h2>
+            <DifficultyBadge difficulty={problem.difficulty} className="shrink-0" />
             {problem.isSolved && (
-              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" aria-label="Solved" />
+              <CheckCircle2 className="h-4 w-4 text-success shrink-0" aria-label="Solved" />
             )}
           </div>
         </div>
@@ -483,23 +469,23 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
         {/* Right: Streak (if today's problem) + Timer + Run + Submit */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           {isTodaysProblem && streak && (
-            <div className="hidden sm:flex items-center gap-3 mr-1">
-              <div className="flex items-center gap-1 text-xs text-orange-500" title="Daily streak">
-                <Flame className="h-3.5 w-3.5" />
-                <span className="font-semibold">{streak.todaysProblemStreak || 0}</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-amber-500" title="Best daily streak">
+            <div className="hidden sm:flex items-center gap-3 mr-1 font-mono text-xs text-muted-foreground">
+              <span className="flex items-center gap-1" title="Daily streak">
+                <Flame className="h-3.5 w-3.5 text-primary" />
+                <span className="text-foreground">{streak.todaysProblemStreak || 0}</span>
+              </span>
+              <span className="flex items-center gap-1" title="Best daily streak">
                 <Trophy className="h-3.5 w-3.5" />
-                <span className="font-semibold">{streak.longestTodaysProblemStreak || 0}</span>
-              </div>
+                <span className="text-foreground">{streak.longestTodaysProblemStreak || 0}</span>
+              </span>
             </div>
           )}
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground mr-1" title="Time on this problem">
             <Clock className="h-3.5 w-3.5" />
-            <span className="font-mono">{formatTime(timeSpent)}</span>
+            <span className="font-mono tabular-nums">{formatTime(timeSpent)}</span>
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={handleRunCode}
@@ -515,7 +501,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
           </Button>
           <Button
             size="sm"
-            className="h-8 gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
+            className="h-8 gap-1.5 text-xs"
             onClick={handleSubmitCode}
             disabled={isRunning || !solution.trim()}
             title="Check every example (Ctrl+Shift+Enter)"
@@ -532,17 +518,17 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
 
       {/* ═══ SUCCESS BANNER ═══ */}
       {justSolved && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-green-50 border-b border-green-200 text-green-800 shrink-0">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <PartyPopper className="h-4 w-4" />
-            Accepted! {isTodaysProblem ? "Today's problem is done. Come back tomorrow for the next one." : "Nice work."}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-success/10 border-b border-success/30 shrink-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-success">
+            <CheckCircle2 className="h-4 w-4" />
+            Accepted! <span className="font-normal text-foreground">{isTodaysProblem ? "Today's problem is done. Come back tomorrow for the next one." : "Nice work."}</span>
           </div>
           {hasNext ? (
             <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleNextProblem}>
               Next problem <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           ) : onBack && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onBack}>
+            <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={onBack}>
               {isTodaysProblem ? "Back to dashboard" : "Back to topic"}
             </Button>
           )}
@@ -555,55 +541,56 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
         {/* ─── LEFT PANEL: Description / Submissions ─── */}
         <div className="lg:w-[45%] border-b lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-[45vh] lg:max-h-none shrink-0 lg:shrink">
           <Tabs value={leftTab} onValueChange={setLeftTab} className="flex flex-col h-full min-h-0">
-            <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2 h-9 shrink-0">
-              <TabsTrigger value="description" className="text-xs gap-1 data-[state=active]:bg-muted">
-                <FileText className="h-3 w-3" />
+            <TabsList className={TAB_STRIP}>
+              <TabsTrigger value="description" className={TAB_STRIP_TRIGGER}>
+                <FileText className="h-3.5 w-3.5" />
                 Description
               </TabsTrigger>
-              <TabsTrigger value="submissions" className="text-xs gap-1 data-[state=active]:bg-muted">
-                <History className="h-3 w-3" />
+              <TabsTrigger value="submissions" className={TAB_STRIP_TRIGGER}>
+                <History className="h-3.5 w-3.5" />
                 Submissions
               </TabsTrigger>
             </TabsList>
 
             {/* Description Tab */}
-            <TabsContent value="description" className="flex-1 overflow-auto m-0 p-4 space-y-4">
-              {/* Topics */}
-              {problem.topics && problem.topics.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {problem.topics.map((t: string) => (
-                    <Badge key={t} variant="secondary" className="text-[10px]">
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </Badge>
+            <TabsContent value="description" className="flex-1 overflow-auto m-0 px-5 py-4 space-y-5">
+              <div className="space-y-2.5">
+                <h1 className="text-xl font-semibold tracking-tight">{problem.title}</h1>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <DifficultyBadge difficulty={problem.difficulty} />
+                  {(problem.topics || []).map((t: string) => (
+                    <span key={t} className="chip">{t}</span>
                   ))}
+                  {problem.isSolved && (
+                    <span className="flex items-center gap-1 text-xs text-success ml-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Solved
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Description */}
-              <div className="prose prose-sm max-w-none">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{problem.description}</p>
-              </div>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{problem.description}</p>
 
               {/* Examples */}
               {problem.examples && problem.examples.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {problem.examples.map((example: any, index: number) => (
                     <div key={index}>
-                      <h4 className="font-semibold text-sm mb-2">Example {index + 1}:</h4>
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1 font-mono text-xs break-all">
-                        <div><span className="font-semibold text-foreground">Input:</span> <span className="text-muted-foreground">{example.input}</span></div>
-                        <div><span className="font-semibold text-foreground">Output:</span> <span className="text-muted-foreground">{example.output}</span></div>
+                      <h4 className="font-semibold text-sm mb-2">Example {index + 1}</h4>
+                      <div className="rounded-md border bg-card p-3 space-y-1 font-mono text-xs leading-5 break-all">
+                        <div><span className="text-muted-foreground">Input: </span>{example.input}</div>
+                        <div><span className="text-muted-foreground">Output: </span>{example.output}</div>
                         {example.explanation && (
-                          <div className="pt-1 font-sans break-normal">
-                            <span className="font-semibold text-foreground text-xs">Explanation:</span>{" "}
-                            <span className="text-muted-foreground text-xs">{example.explanation}</span>
+                          <div className="pt-1 font-sans break-normal text-muted-foreground">
+                            <span className="text-foreground">Explanation: </span>{example.explanation}
                           </div>
                         )}
                       </div>
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    Your program gets each example's input on stdin. In Python and JavaScript just fill in <code className="bg-muted px-1 rounded">solve()</code>; the starter code reads the input and prints your answer.
+                    Your program gets each example's input on stdin. In Python and JavaScript just fill in <code className="rounded bg-muted px-1 py-0.5 text-foreground">solve()</code>; the starter code reads the input and prints your answer.
                   </p>
                 </div>
               )}
@@ -611,12 +598,12 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
               {/* Constraints */}
               {problem.constraints && problem.constraints.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-sm mb-2">Constraints:</h4>
-                  <ul className="text-sm space-y-1">
+                  <h4 className="font-semibold text-sm mb-2">Constraints</h4>
+                  <ul className="space-y-1.5">
                     {problem.constraints.map((constraint: string, index: number) => (
-                      <li key={index} className="text-muted-foreground flex items-start gap-1.5">
-                        <span className="text-foreground mt-0.5">•</span>
-                        <code className="text-xs bg-muted px-1 py-0.5 rounded">{formatConstraint(constraint)}</code>
+                      <li key={index} className="flex items-start gap-2 text-muted-foreground">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                        <code className="font-mono text-xs bg-muted text-foreground px-1.5 py-0.5 rounded">{formatConstraint(constraint)}</code>
                       </li>
                     ))}
                   </ul>
@@ -627,7 +614,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
               {problem.hints && problem.hints.length > 0 && (
                 <div>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => setShowHints(!showHints)}
                     className="gap-1.5 text-xs h-7"
@@ -636,16 +623,14 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
                     {showHints ? 'Hide Hints' : `Show Hints (${problem.hints.length})`}
                   </Button>
                   {showHints && (
-                    <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                      <ul className="text-sm space-y-1.5">
-                        {problem.hints.map((hint: string, index: number) => (
-                          <li key={index} className="flex items-start gap-2 text-yellow-800 dark:text-yellow-200">
-                            <span className="font-semibold shrink-0">Hint {index + 1}:</span>
-                            <span>{hint}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ol className="mt-2 divide-y rounded-md border bg-card">
+                      {problem.hints.map((hint: string, index: number) => (
+                        <li key={index} className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                          <span className="font-mono text-xs text-muted-foreground mt-0.5 shrink-0">#{index + 1}</span>
+                          <span className="text-foreground/90">{hint}</span>
+                        </li>
+                      ))}
+                    </ol>
                   )}
                 </div>
               )}
@@ -667,44 +652,41 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
             {/* Submissions Tab */}
             <TabsContent value="submissions" className="flex-1 overflow-auto m-0 p-4">
               {loadingSubmissions ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
               ) : submissions.length === 0 ? (
-                <div className="text-center py-12">
-                  <History className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">No submissions yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Accepted solutions appear here</p>
-                </div>
+                <EmptyState icon={History} title="No submissions yet" description="Accepted solutions appear here." className="border-0" />
               ) : (
-                <div className="space-y-2">
+                <div className="rounded-md border divide-y">
                   {submissions.map((sub: any, index: number) => {
                     const isOpen = selectedSubmission?._id === sub._id;
                     return (
-                      <div key={sub._id || index} className={`rounded-lg border text-sm ${isOpen ? 'ring-2 ring-primary bg-muted/50' : ''}`}>
+                      <div key={sub._id || index} className={isOpen ? "bg-card" : undefined}>
                         <button
-                          className="w-full text-left p-3 flex items-center justify-between hover:bg-muted/50 rounded-lg transition-colors"
+                          className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-accent/50 transition-colors"
                           onClick={() => setSelectedSubmission(isOpen ? null : sub)}
+                          aria-expanded={isOpen}
                         >
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                            <Badge variant="secondary" className="text-[10px]">{sub.solution?.language || sub.language}</Badge>
-                            <span className="text-[10px] text-muted-foreground">#{submissions.length - index}</span>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                            <span className="text-xs font-medium text-success">Accepted</span>
+                            <span className="chip">{sub.solution?.language || sub.language}</span>
                           </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(sub.solvedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            #{submissions.length - index} · {new Date(sub.solvedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </button>
 
                         {/* Expanded submission code */}
                         {isOpen && (
                           <div className="px-3 pb-3">
-                            <pre className="bg-[#1e1e1e] text-gray-300 rounded-lg p-3 text-xs font-mono overflow-auto max-h-[300px] whitespace-pre-wrap select-text">
+                            <pre className="bg-background border rounded-md p-3 text-xs font-mono leading-5 overflow-auto max-h-[300px] whitespace-pre-wrap select-text">
                               {sub.solution?.code || 'No code saved'}
                             </pre>
                             {sub.solution?.code && (
                               <div className="flex gap-2 mt-2">
-                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => loadSubmissionIntoEditor(sub)}>
+                                <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" onClick={() => loadSubmissionIntoEditor(sub)}>
                                   <Code className="h-3 w-3" /> Load into editor
                                 </Button>
                                 <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => copyCode(sub.solution.code)}>
@@ -729,11 +711,10 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
         {/* ─── RIGHT PANEL: Code Editor + Output ─── */}
         <div className="lg:w-[55%] flex flex-col min-h-[70vh] lg:min-h-0 lg:flex-1">
           {/* Language selector bar */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b shrink-0 bg-background">
-            <div className="flex items-center gap-2">
-              <Code className="h-3.5 w-3.5 text-muted-foreground" />
+          <div className="h-10 flex items-center justify-between gap-2 px-2 border-b shrink-0 bg-card">
+            <div className="flex items-center gap-2 min-w-0">
               <Select value={language} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="w-[120px] h-7 text-xs border-0 bg-muted/50">
+                <SelectTrigger className="w-[132px] h-7 text-xs font-mono bg-background" aria-label="Language">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -742,7 +723,7 @@ export const ProblemInterface = ({ problemId, topic, onBack, onProblemSolved }: 
                   ))}
                 </SelectContent>
               </Select>
-              <span className="hidden sm:inline text-[10px] text-muted-foreground">Saved automatically</span>
+              <span className="hidden sm:inline text-[11px] text-muted-foreground truncate">Saved automatically</span>
             </div>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={handleResetCode} title="Replace your code with the starter code">
               <RotateCcw className="h-3 w-3" /> Reset code

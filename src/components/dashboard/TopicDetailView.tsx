@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, Clock, FileText, Code, HelpCircle, MessageSquare,
-  ChevronDown, ChevronRight, CheckCircle, Circle, Play, BookOpen,
-  Trophy, Star, Building2, BarChart3, X
+  ChevronDown, ChevronRight, Check, CheckCircle2, Circle, XCircle, Play, RotateCcw,
+  Trophy, Building2, BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiService } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { DifficultyBadge } from "@/components/common/DifficultyBadge";
+import { EmptyState } from "@/components/common/EmptyState";
 
 interface TopicDetailViewProps {
   topicId: string;
@@ -17,20 +21,9 @@ interface TopicDetailViewProps {
   onNavigateToSection?: (section: string) => void;
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: 'bg-green-100 text-green-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  hard: 'bg-red-100 text-red-700',
-  beginner: 'bg-green-100 text-green-700',
-  intermediate: 'bg-yellow-100 text-yellow-700',
-  advanced: 'bg-red-100 text-red-700',
-};
-
-const FREQUENCY_COLORS: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high: 'bg-orange-100 text-orange-700',
-};
+// Shared look of the clickable rows in the Learn and Interview lists
+const ROW_BUTTON =
+  "flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicDetailViewProps) => {
   const [topic, setTopic] = useState<any>(null);
@@ -184,11 +177,15 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-3 text-muted-foreground">Loading topic...</p>
+      <div className="space-y-6" aria-busy="true">
+        <p className="sr-only" role="status">Loading topic...</p>
+        <Skeleton className="h-8 w-36" />
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-full max-w-xl" />
         </div>
+        <Skeleton className="h-10 w-full max-w-lg" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
@@ -196,13 +193,19 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
   if (!topic) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={onBack} className="gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-3 gap-2 text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to Topics
         </Button>
-        <p className="text-muted-foreground">
-          {loadFailed ? "Couldn't load this topic. Check your connection and try again." : "Topic not found."}
-        </p>
-        {loadFailed && <Button onClick={loadTopicData}>Try again</Button>}
+        <Card className="p-8 text-center space-y-3">
+          <p className="text-sm font-medium">
+            {loadFailed ? "Couldn't load this topic. Check your connection and try again." : "Topic not found."}
+          </p>
+          {loadFailed && (
+            <Button onClick={loadTopicData} variant="secondary" className="gap-2">
+              <RotateCcw className="h-4 w-4" /> Try again
+            </Button>
+          )}
+        </Card>
       </div>
     );
   }
@@ -210,29 +213,63 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
   const quizBestScore = progress?.quizScores?.[topicId];
   const subtopicCount = topic.subtopics?.length || 0;
   const readCount = readSubtopics.size;
+  const solvedCount = problems.filter(p => p.isSolved).length;
+
+  // Overall progress for the header, scored the same way as the topic list so both pages agree
+  const practiceTopics: string[] = topic.practiceTopics ?? [topicId];
+  const practiceSolved = practiceTopics.reduce((sum, key) => sum + (progress?.topicProgress?.[key] || 0), 0);
+  const progressParts = [
+    Math.min((readCount / (subtopicCount || 1)) * 100, 100),
+    ...(practiceTopics.length > 0 ? [Math.min(practiceSolved * 20, 100)] : []),
+    quizBestScore ? Math.min((quizBestScore.bestScore / (quizBestScore.totalQuestions || topic.mcqCount || 1)) * 100, 100) : 0,
+    topic.interviewQuestionCount > 0 ? Math.min((viewedIQCount / topic.interviewQuestionCount) * 100, 100) : 0,
+  ];
+  const overallProgress = Math.round(progressParts.reduce((sum, value) => sum + value, 0) / progressParts.length);
+
+  const quizScoreTone =
+    quizScore >= mcqs.length * 0.8 ? "text-success" :
+    quizScore >= mcqs.length * 0.5 ? "text-warning" :
+    "text-destructive";
+  const wrongCount = mcqs.length - quizScore;
 
   return (
     <div className="space-y-6">
       {/* Back Button + Header */}
-      <div className="flex items-start gap-4">
-        <Button variant="ghost" size="sm" onClick={onBack} className="mt-1">
-          <ArrowLeft className="h-4 w-4" />
+      <div className="space-y-3">
+        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-3 gap-2 text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Back to Topics
         </Button>
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
-            <span className="text-3xl">{topic.icon}</span>
-            <h1 className="text-2xl font-bold">{topic.name}</h1>
-            <Badge variant="outline" className={cn("text-xs", DIFFICULTY_COLORS[topic.difficulty])}>
-              {topic.difficulty}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground">{topic.description}</p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {topic.estimatedHours}h estimated</span>
-            <span className="flex items-center gap-1"><FileText className="h-4 w-4" /> {subtopicCount} articles</span>
-            <span className="flex items-center gap-1"><HelpCircle className="h-4 w-4" /> {mcqs.length} MCQs</span>
-            <span className="flex items-center gap-1"><MessageSquare className="h-4 w-4" /> {interviewQuestions.length} interview Qs</span>
-          </div>
+        <PageHeader
+          title={topic.name}
+          description={topic.description}
+          actions={
+            <div className="w-full space-y-2 sm:w-56">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="eyebrow">Overall progress</span>
+                <span className="font-mono text-sm font-medium tabular-nums">{overallProgress}%</span>
+              </div>
+              <Progress value={overallProgress} aria-label="Overall progress" />
+            </div>
+          }
+        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          {topic.difficulty && <span className="chip">{topic.difficulty}</span>}
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+            <span><span className="font-mono tabular-nums text-foreground">{topic.estimatedHours}h</span> estimated</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            <span><span className="font-mono tabular-nums text-foreground">{subtopicCount}</span> articles</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            <span><span className="font-mono tabular-nums text-foreground">{mcqs.length}</span> MCQs</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+            <span><span className="font-mono tabular-nums text-foreground">{interviewQuestions.length}</span> interview Qs</span>
+          </span>
         </div>
       </div>
 
@@ -247,298 +284,338 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
 
         {/* ============ LEARN TAB ============ */}
         <TabsContent value="learn" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex items-center justify-between gap-4">
+            <p className="font-mono text-xs text-muted-foreground tabular-nums">
               {readCount}/{subtopicCount} articles read
             </p>
-            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${subtopicCount > 0 ? (readCount / subtopicCount) * 100 : 0}%` }} />
-            </div>
+            <Progress
+              value={subtopicCount > 0 ? Math.min((readCount / subtopicCount) * 100, 100) : 0}
+              className="w-32"
+              aria-label="Articles read"
+            />
           </div>
 
-          {topic.subtopics?.map((st: any, idx: number) => {
-            const stId = st._id || `st-${idx}`;
-            const isExpanded = expandedSubtopics.has(stId);
-            const isRead = readSubtopics.has(stId);
+          {subtopicCount > 0 && (
+            <Card className="overflow-hidden">
+              <ul className="divide-y">
+                {topic.subtopics?.map((st: any, idx: number) => {
+                  const stId = st._id || `st-${idx}`;
+                  const isExpanded = expandedSubtopics.has(stId);
+                  const isRead = readSubtopics.has(stId);
 
-            return (
-              <Card key={stId} className={cn("transition-all", isRead && "border-green-200 bg-green-50/30")}>
-                <CardContent className="p-0">
-                  <button
-                    className="w-full p-4 flex items-center gap-3 text-left hover:bg-accent/50 transition-colors"
-                    onClick={() => toggleSubtopic(stId)}
-                  >
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0",
-                      isRead ? "bg-green-100 text-green-700" : "bg-primary/10 text-primary"
-                    )}>
-                      {isRead ? <CheckCircle className="h-4 w-4" /> : idx + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-sm">{st.title}</h3>
-                      {st.timeComplexity && (
-                        <div className="flex gap-2 mt-0.5">
-                          <Badge variant="outline" className="text-[10px]">Time: {st.timeComplexity}</Badge>
-                          {st.spaceComplexity && <Badge variant="outline" className="text-[10px]">Space: {st.spaceComplexity}</Badge>}
-                        </div>
-                      )}
-                    </div>
-                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                  </button>
+                  return (
+                    <li key={stId}>
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        className={cn(ROW_BUTTON, "items-center")}
+                        onClick={() => toggleSubtopic(stId)}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] tabular-nums",
+                            isRead ? "border-success/30 bg-success/10 text-success" : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {isRead ? (
+                            <>
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span className="sr-only">Read</span>
+                            </>
+                          ) : idx + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium">{st.title}</span>
+                          {st.timeComplexity && (
+                            <span className="mt-1 flex flex-wrap gap-1.5">
+                              <span className="chip">Time: {st.timeComplexity}</span>
+                              {st.spaceComplexity && <span className="chip">Space: {st.spaceComplexity}</span>}
+                            </span>
+                          )}
+                        </span>
+                        {isExpanded
+                          ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                      </button>
 
-                  {isExpanded && (
-                    <div className="px-4 pb-4 space-y-4 border-t">
-                      {/* Concepts */}
-                      {st.concepts?.length > 0 && (
-                        <div className="pt-3">
-                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Key Concepts</h4>
-                          <ul className="space-y-1.5">
-                            {st.concepts.map((c: string, i: number) => (
-                              <li key={i} className="flex items-start gap-2 text-sm">
-                                <span className="text-primary mt-1">•</span>
-                                <span>{c}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      {isExpanded && (
+                        <div className="space-y-4 border-t px-4 py-4 sm:pl-[52px]">
+                          {/* Concepts */}
+                          {st.concepts?.length > 0 && (
+                            <div>
+                              <p className="eyebrow mb-2">Key Concepts</p>
+                              <ul className="space-y-1.5">
+                                {st.concepts.map((c: string, i: number) => (
+                                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" aria-hidden="true" />
+                                    <span className="min-w-0 break-words">{c}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
 
-                      {/* Code Example */}
-                      {st.codeExample?.code && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-                            {st.codeExample.title || 'Code Example'}
-                            {st.codeExample.language && (
-                              <Badge variant="outline" className="ml-2 text-[10px]">{st.codeExample.language}</Badge>
-                            )}
-                          </h4>
-                          <pre className="bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">
-                            <code>{st.codeExample.code}</code>
-                          </pre>
-                          {st.codeExample.explanation && (
-                            <p className="text-sm text-muted-foreground mt-2 italic">{st.codeExample.explanation}</p>
+                          {/* Code Example */}
+                          {st.codeExample?.code && (
+                            <div>
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <p className="eyebrow">{st.codeExample.title || 'Code Example'}</p>
+                                {st.codeExample.language && <span className="chip">{st.codeExample.language}</span>}
+                              </div>
+                              <pre className="overflow-x-auto rounded-md border bg-background p-4 font-mono text-[13px] leading-relaxed text-foreground">
+                                <code>{st.codeExample.code}</code>
+                              </pre>
+                              {st.codeExample.explanation && (
+                                <p className="mt-2 text-sm text-muted-foreground">{st.codeExample.explanation}</p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Mark as Read */}
+                          {!isRead && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => markAsRead(stId)}
+                              className="gap-2"
+                            >
+                              <CheckCircle2 className="h-4 w-4" /> Mark as Read
+                            </Button>
                           )}
                         </div>
                       )}
-
-                      {/* Mark as Read */}
-                      {!isRead && (
-                        <Button
-                          size="sm"
-                          onClick={() => markAsRead(stId)}
-                          className="gap-2 bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="h-4 w-4" /> Mark as Read
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
 
           {subtopicCount === 0 && (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No articles yet for this topic.</CardContent></Card>
+            <EmptyState icon={FileText} title="No articles yet for this topic." />
           )}
         </TabsContent>
 
         {/* ============ PRACTICE TAB ============ */}
         <TabsContent value="practice" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Filter by difficulty">
               {['all', 'easy', 'medium', 'hard'].map(d => (
                 <Button
                   key={d}
-                  variant={practiceFilter === d ? 'default' : 'outline'}
+                  variant={practiceFilter === d ? 'secondary' : 'ghost'}
                   size="sm"
+                  aria-pressed={practiceFilter === d}
                   onClick={() => setPracticeFilter(d)}
-                  className="h-8 text-xs capitalize"
+                  className={cn(
+                    "h-8 px-3 text-xs capitalize",
+                    practiceFilter !== d && "border border-transparent text-muted-foreground"
+                  )}
                 >
                   {d === 'all' ? 'All' : d}
                 </Button>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {problems.filter(p => p.isSolved).length}/{problems.length} solved
+            <p className="font-mono text-xs text-muted-foreground tabular-nums">
+              {solvedCount}/{problems.length} solved
             </p>
           </div>
 
           {filteredProblems.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No practice problems available for this topic yet.</CardContent></Card>
+            <EmptyState icon={Code} title="No practice problems available for this topic yet." />
           ) : (
-            <div className="space-y-2">
-              {filteredProblems.map((prob: any) => (
-                <Card key={prob._id || prob.problemId} className={cn("transition-all hover:shadow-sm", prob.isSolved && "bg-green-50/50 border-green-200")}>
-                  <CardContent className="p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {prob.isSolved ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-foreground/40 flex-shrink-0" />
-                      )}
-                      <div>
-                        <p className={cn("font-medium text-sm", prob.isSolved && "text-green-800")}>{prob.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge className={cn("text-[10px] px-1.5 py-0", DIFFICULTY_COLORS[prob.difficulty])}>
-                            {prob.difficulty}
-                          </Badge>
-                          {prob.acceptanceRate && (
-                            <span className="text-[10px] text-muted-foreground">{prob.acceptanceRate}% acceptance</span>
-                          )}
-                        </div>
+            <Card className="overflow-hidden">
+              <ul className="divide-y">
+                {filteredProblems.map((prob: any) => (
+                  <li key={prob._id || prob.problemId} className="flex items-center gap-3 px-4 py-3">
+                    {prob.isSolved ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+                    ) : (
+                      <Circle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    )}
+                    <span className="sr-only">{prob.isSolved ? 'Solved' : 'Not solved'}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{prob.title}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <DifficultyBadge difficulty={prob.difficulty} />
+                        {(prob.topics || []).slice(0, 3).map((t: string) => (
+                          <span key={t} className="chip">{t}</span>
+                        ))}
+                        {prob.acceptanceRate > 0 && (
+                          <span className="font-mono text-[11px] text-muted-foreground tabular-nums">{prob.acceptanceRate}% acceptance</span>
+                        )}
                       </div>
                     </div>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-                      className="h-7 text-xs gap-1"
+                      className="h-8 shrink-0 gap-1.5 px-3"
                       onClick={() => onNavigateToSection?.(`problem-interface&topicId=${topicId}&problemId=${prob.problemId}`)}
                     >
-                      <Play className="h-3 w-3" /> Solve
+                      <Play className="h-4 w-4" /> Solve
                     </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
           )}
         </TabsContent>
 
         {/* ============ QUIZ TAB ============ */}
         <TabsContent value="quiz" className="space-y-4">
           {mcqs.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No quiz questions available for this topic yet.</CardContent></Card>
+            <EmptyState icon={HelpCircle} title="No quiz questions available for this topic yet." />
           ) : !quizStarted ? (
             // Quiz intro
-            <Card>
-              <CardContent className="p-8 text-center space-y-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                  <HelpCircle className="h-8 w-8 text-primary" />
+            <Card className="p-6 sm:p-8">
+              <div className="mx-auto flex max-w-md flex-col items-center gap-4 text-center">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted">
+                  <HelpCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                </span>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">{topic.name} Quiz</h2>
+                  <p className="text-sm text-muted-foreground">{mcqs.length} questions to test your understanding</p>
                 </div>
-                <h2 className="text-xl font-bold">{topic.name} Quiz</h2>
-                <p className="text-muted-foreground">{mcqs.length} questions to test your understanding</p>
                 {quizBestScore && (
-                  <div className="flex items-center justify-center gap-4 text-sm">
-                    <span className="flex items-center gap-1"><Trophy className="h-4 w-4 text-amber-500" /> Best: {quizBestScore.bestScore}/{quizBestScore.totalQuestions}</span>
-                    <span className="flex items-center gap-1"><BarChart3 className="h-4 w-4 text-blue-500" /> Attempts: {quizBestScore.attempts}</span>
+                  <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 font-mono text-xs text-muted-foreground tabular-nums">
+                    <span className="inline-flex items-center gap-1.5"><Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Best: {quizBestScore.bestScore}/{quizBestScore.totalQuestions}</span>
+                    <span className="inline-flex items-center gap-1.5"><BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Attempts: {quizBestScore.attempts}</span>
                   </div>
                 )}
-                <Button onClick={startQuiz} size="lg" className="gap-2">
-                  <Play className="h-5 w-5" /> Start Quiz
+                <Button onClick={startQuiz} className="gap-2">
+                  <Play className="h-4 w-4" /> Start Quiz
                 </Button>
-              </CardContent>
+              </div>
             </Card>
           ) : quizFinished ? (
             // Quiz results
-            <Card>
-              <CardContent className="p-8 text-center space-y-4">
-                <div className={cn(
-                  "w-20 h-20 rounded-full flex items-center justify-center mx-auto text-2xl font-bold",
-                  quizScore >= mcqs.length * 0.8 ? "bg-green-100 text-green-700" :
-                  quizScore >= mcqs.length * 0.5 ? "bg-yellow-100 text-yellow-700" :
-                  "bg-red-100 text-red-700"
-                )}>
-                  {quizScore}/{mcqs.length}
+            <Card className="p-6 sm:p-8">
+              <div className="mx-auto flex max-w-md flex-col items-center gap-5 text-center">
+                <div className="space-y-1">
+                  <p className="eyebrow">Your score</p>
+                  <p className={cn("font-mono text-4xl font-semibold tabular-nums", quizScoreTone)}>
+                    {quizScore}/{mcqs.length}
+                  </p>
                 </div>
-                <h2 className="text-xl font-bold">
-                  {quizScore >= mcqs.length * 0.8 ? 'Excellent!' :
-                   quizScore >= mcqs.length * 0.5 ? 'Good effort!' : 'Keep practicing!'}
-                </h2>
-                <p className="text-muted-foreground">
-                  You scored {Math.round((quizScore / mcqs.length) * 100)}% on {topic.name}
-                </p>
-                <div className="flex justify-center gap-3">
-                  <Button variant="outline" onClick={() => { setQuizStarted(false); setQuizFinished(false); }}>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">
+                    {quizScore >= mcqs.length * 0.8 ? 'Excellent!' :
+                     quizScore >= mcqs.length * 0.5 ? 'Good effort!' : 'Keep practicing!'}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    You scored {Math.round((quizScore / mcqs.length) * 100)}% on {topic.name}
+                  </p>
+                </div>
+                <dl className="grid w-full grid-cols-3 divide-x rounded-md border">
+                  <div className="px-3 py-2">
+                    <dt className="eyebrow">Correct</dt>
+                    <dd className={cn("mt-0.5 font-mono text-sm font-medium tabular-nums", quizScore > 0 && "text-success")}>{quizScore}</dd>
+                  </div>
+                  <div className="px-3 py-2">
+                    <dt className="eyebrow">Wrong</dt>
+                    <dd className={cn("mt-0.5 font-mono text-sm font-medium tabular-nums", wrongCount > 0 && "text-destructive")}>{wrongCount}</dd>
+                  </div>
+                  <div className="px-3 py-2">
+                    <dt className="eyebrow">Best</dt>
+                    <dd className="mt-0.5 font-mono text-sm font-medium tabular-nums">
+                      {quizBestScore ? `${quizBestScore.bestScore}/${quizBestScore.totalQuestions}` : '—'}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <Button variant="secondary" onClick={() => { setQuizStarted(false); setQuizFinished(false); }}>
                     Back
                   </Button>
                   <Button onClick={startQuiz} className="gap-2">
-                    <Play className="h-4 w-4" /> Retry
+                    <RotateCcw className="h-4 w-4" /> Retry
                   </Button>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ) : (
             // Quiz in progress
             <div className="space-y-4">
               {/* Progress */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Question {currentQ + 1} of {mcqs.length}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Score: {quizScore}</span>
-                  <Badge variant="outline" className={cn("text-[10px]", DIFFICULTY_COLORS[mcqs[currentQ].difficulty])}>
-                    {mcqs[currentQ].difficulty}
-                  </Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs text-muted-foreground tabular-nums">Question {currentQ + 1} of {mcqs.length}</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">Score: {quizScore}</span>
+                  <DifficultyBadge difficulty={mcqs[currentQ].difficulty} />
                 </div>
               </div>
-              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${((currentQ + 1) / mcqs.length) * 100}%` }} />
-              </div>
+              <Progress value={((currentQ + 1) / mcqs.length) * 100} aria-label="Quiz progress" />
 
               {/* Question */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <h3 className="text-lg font-semibold">{mcqs[currentQ].question}</h3>
+              <Card className="p-5 space-y-4">
+                <h3 className="text-base font-semibold leading-relaxed">{mcqs[currentQ].question}</h3>
 
-                  <div className="space-y-2">
-                    {mcqs[currentQ].options.map((opt: string, i: number) => {
-                      const isSelected = selectedAnswer === i;
-                      const isCorrect = i === mcqs[currentQ].correctIndex;
-                      const showResult = showExplanation;
+                <div className="space-y-2">
+                  {mcqs[currentQ].options.map((opt: string, i: number) => {
+                    const isSelected = selectedAnswer === i;
+                    const isCorrect = i === mcqs[currentQ].correctIndex;
+                    const showResult = showExplanation;
 
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => selectAnswer(i)}
-                          disabled={showExplanation}
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => selectAnswer(i)}
+                        disabled={showExplanation}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          !showResult && "hover:bg-accent/50",
+                          !showResult && isSelected && "border-primary bg-primary/10",
+                          showResult && isCorrect && "border-success/40 bg-success/10 text-success",
+                          showResult && isSelected && !isCorrect && "border-destructive/40 bg-destructive/10 text-destructive",
+                          showResult && !isCorrect && !isSelected && "opacity-50"
+                        )}
+                      >
+                        <span
                           className={cn(
-                            "w-full text-left p-3 rounded-lg border-2 transition-all text-sm",
-                            !showResult && "hover:border-primary/50 hover:bg-primary/5",
-                            !showResult && isSelected && "border-primary bg-primary/10",
-                            !showResult && !isSelected && "border-border",
-                            showResult && isCorrect && "border-green-500 bg-green-50 text-green-800",
-                            showResult && isSelected && !isCorrect && "border-red-500 bg-red-50 text-red-800",
-                            showResult && !isCorrect && !isSelected && "border-border opacity-50"
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border font-mono text-xs",
+                            showResult && isCorrect ? "border-success/40" :
+                            showResult && isSelected ? "border-destructive/40" :
+                            isSelected ? "border-primary text-primary" :
+                            "bg-muted text-muted-foreground"
                           )}
                         >
-                          <div className="flex items-center gap-3">
-                            <span className={cn(
-                              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
-                              showResult && isCorrect ? "bg-green-200 text-green-800" :
-                              showResult && isSelected ? "bg-red-200 text-red-800" :
-                              "bg-muted text-muted-foreground"
-                            )}>
-                              {String.fromCharCode(65 + i)}
-                            </span>
-                            <span>{opt}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          {String.fromCharCode(65 + i)}
+                        </span>
+                        <span className="min-w-0 flex-1 break-words">{opt}</span>
+                        {showResult && isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                        {showResult && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Explanation */}
+                {showExplanation && mcqs[currentQ].explanation && (
+                  <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                    <p
+                      className={cn(
+                        "mb-1 flex items-center gap-2 font-medium",
+                        selectedAnswer === mcqs[currentQ].correctIndex ? "text-success" : "text-destructive"
+                      )}
+                    >
+                      {selectedAnswer === mcqs[currentQ].correctIndex
+                        ? <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        : <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                      {selectedAnswer === mcqs[currentQ].correctIndex ? 'Correct!' : 'Incorrect'}
+                    </p>
+                    <p className="text-muted-foreground">{mcqs[currentQ].explanation}</p>
                   </div>
+                )}
 
-                  {/* Explanation */}
-                  {showExplanation && mcqs[currentQ].explanation && (
-                    <div className={cn(
-                      "p-3 rounded-lg text-sm",
-                      selectedAnswer === mcqs[currentQ].correctIndex ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"
-                    )}>
-                      <p className="font-medium mb-1">
-                        {selectedAnswer === mcqs[currentQ].correctIndex ? 'Correct!' : 'Incorrect'}
-                      </p>
-                      <p className="text-muted-foreground">{mcqs[currentQ].explanation}</p>
-                    </div>
-                  )}
-
-                  {/* Next button */}
-                  {showExplanation && (
-                    <div className="flex justify-end">
-                      <Button onClick={currentQ < mcqs.length - 1 ? nextQuestion : finishQuiz} className="gap-2">
-                        {currentQ < mcqs.length - 1 ? 'Next Question' : 'See Results'}
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
+                {/* Next button */}
+                {showExplanation && (
+                  <div className="flex justify-end">
+                    <Button onClick={currentQ < mcqs.length - 1 ? nextQuestion : finishQuiz} className="gap-2">
+                      {currentQ < mcqs.length - 1 ? 'Next Question' : 'See Results'}
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </Card>
             </div>
           )}
@@ -546,66 +623,68 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
 
         {/* ============ INTERVIEW TAB ============ */}
         <TabsContent value="interview" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{viewedIQCount}/{interviewQuestions.length} questions explored</p>
-            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${interviewQuestions.length > 0 ? (viewedIQCount / interviewQuestions.length) * 100 : 0}%` }} />
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <p className="font-mono text-xs text-muted-foreground tabular-nums">{viewedIQCount}/{interviewQuestions.length} questions explored</p>
+            <Progress
+              value={interviewQuestions.length > 0 ? Math.min((viewedIQCount / interviewQuestions.length) * 100, 100) : 0}
+              className="w-32"
+              aria-label="Interview questions explored"
+            />
           </div>
 
           {interviewQuestions.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No interview questions available for this topic yet.</CardContent></Card>
+            <EmptyState icon={MessageSquare} title="No interview questions available for this topic yet." />
           ) : (
-            <div className="space-y-3">
-              {interviewQuestions.map((iq: any, idx: number) => {
-                const iqId = iq._id || `iq-${idx}`;
-                const isExpanded = expandedIQs.has(iqId);
+            <Card className="overflow-hidden">
+              <ul className="divide-y">
+                {interviewQuestions.map((iq: any, idx: number) => {
+                  const iqId = iq._id || `iq-${idx}`;
+                  const isExpanded = expandedIQs.has(iqId);
 
-                return (
-                  <Card key={iqId} className={cn("transition-all", isExpanded && "ring-1 ring-primary/30")}>
-                    <CardContent className="p-0">
+                  return (
+                    <li key={iqId}>
                       <button
-                        className="w-full p-4 flex items-start gap-3 text-left hover:bg-accent/50 transition-colors"
+                        type="button"
+                        aria-expanded={isExpanded}
+                        className={cn(ROW_BUTTON, "items-start")}
                         onClick={() => toggleIQ(iqId)}
                       >
-                        <span className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border bg-muted font-mono text-[11px] tabular-nums text-muted-foreground">
                           {idx + 1}
                         </span>
-                        <div className="flex-1">
-                          <h3 className="font-medium text-sm">{iq.question}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge className={cn("text-[10px] px-1.5 py-0", DIFFICULTY_COLORS[iq.difficulty])}>
-                              {iq.difficulty}
-                            </Badge>
-                            <Badge className={cn("text-[10px] px-1.5 py-0", FREQUENCY_COLORS[iq.frequency])}>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium">{iq.question}</span>
+                          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <DifficultyBadge difficulty={iq.difficulty} />
+                            <span className="chip">
                               {iq.frequency === 'high' ? 'Frequently Asked' : iq.frequency === 'medium' ? 'Sometimes Asked' : 'Rarely Asked'}
-                            </Badge>
+                            </span>
                             {iq.companies?.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Building2 className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[10px] text-muted-foreground">{iq.companies.slice(0, 3).join(', ')}</span>
-                              </div>
+                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                <Building2 className="h-3 w-3" aria-hidden="true" />
+                                {iq.companies.slice(0, 3).join(', ')}
+                              </span>
                             )}
-                          </div>
-                        </div>
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" /> : <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />}
+                          </span>
+                        </span>
+                        {isExpanded
+                          ? <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          : <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
                       </button>
 
                       {isExpanded && (
-                        <div className="px-4 pb-4 pt-1 border-t">
-                          <div className="pl-10">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Answer</h4>
-                            <div className="text-sm leading-relaxed whitespace-pre-wrap bg-accent/30 p-3 rounded-lg">
-                              {iq.answer}
-                            </div>
+                        <div className="px-4 pb-4 sm:pl-[52px]">
+                          <p className="eyebrow mb-2">Answer</p>
+                          <div className="whitespace-pre-wrap break-words rounded-md border bg-muted/40 p-3 text-sm leading-relaxed">
+                            {iq.answer}
                           </div>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
           )}
         </TabsContent>
       </Tabs>

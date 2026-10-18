@@ -21,9 +21,11 @@ const applyStreaks = async (progress, userId, timeZone) => {
 
   const solveDays = new Set();
   const dailyDays = new Set();
+  const activity = {};
   for (const solve of solves) {
     const day = dayKey(solve.solvedAt, timeZone);
     solveDays.add(day);
+    activity[day] = (activity[day] || 0) + 1;
     if (solve.isDailyProblem) dailyDays.add(day);
   }
 
@@ -32,6 +34,9 @@ const applyStreaks = async (progress, userId, timeZone) => {
   progress.todaysProblemStreak = countStreak(dailyDays, today);
   progress.longestStreak = Math.max(progress.longestStreak || 0, progress.currentStreak);
   progress.longestTodaysProblemStreak = Math.max(progress.longestTodaysProblemStreak || 0, progress.todaysProblemStreak);
+
+  // Problems solved per day ("YYYY-MM-DD" -> count), for the activity calendar
+  return activity;
 };
 
 // The same problem for everyone on a given calendar day, rotating through the bank.
@@ -103,11 +108,12 @@ router.get('/', auth, async (req, res) => {
       userId: req.user._id,
       status: 'solved'
     });
-    await applyStreaks(progress, req.user._id, timeZoneOf(req));
+    const activity = await applyStreaks(progress, req.user._id, timeZoneOf(req));
 
     await progress.save();
 
     res.json({
+      activity,
       progress: {
         // flattenMaps: quizScores / interviewQuestionsViewed are Maps, which JSON can't carry
         ...progress.toObject({ flattenMaps: true }),
@@ -259,6 +265,15 @@ router.get('/recommendations', auth, async (req, res) => {
       });
     }
 
+    // Fresh numbers, so a tip never contradicts the stats shown next to it
+    // (the dashboard asks for these at the same time as the progress itself)
+    await applyStreaks(progress, req.user._id, timeZoneOf(req));
+    progress.problemsSolvedThisWeek = await Problem.countDocuments({
+      userId: req.user._id,
+      status: 'solved',
+      solvedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+    });
+
     const recommendations = [];
 
     // Topic-based recommendations
@@ -266,16 +281,18 @@ router.get('/recommendations', auth, async (req, res) => {
       'arrays', 'strings', 'linkedLists', 'trees', 'graphs',
       'dynamicProgramming', 'greedy', 'backtracking', 'binarySearch'
     ];
+    // "dynamicProgramming" -> "Dynamic Programming"
+    const topicName = (topic) => topic.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
     for (const topic of topicOrder) {
       const topicProgress = progress.topicProgress[topic] || 0;
-      
+
       if (topicProgress < 5) {
         recommendations.push({
           type: 'topic',
-          title: `Practice ${topic.charAt(0).toUpperCase() + topic.slice(1)}`,
-          description: `You've solved ${topicProgress} ${topic} problems. Aim for at least 5 to build a strong foundation.`,
-          action: `Start ${topic.charAt(0).toUpperCase() + topic.slice(1)}`,
+          title: `Practice ${topicName(topic)}`,
+          description: `You've solved ${topicProgress} ${topicName(topic).toLowerCase()} problems. Aim for at least 5 to build a strong foundation.`,
+          action: `Start ${topicName(topic)}`,
           priority: topicProgress === 0 ? 'high' : 'medium',
           reason: topicProgress === 0 ? 'New topic to explore' : 'Need more practice',
           topic,

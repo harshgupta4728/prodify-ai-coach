@@ -6,6 +6,8 @@ const Dashboard = lazy(() => import("@/components/dashboard/Dashboard").then((m)
 import { apiService, SESSION_EXPIRED_EVENT, type User } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { applySavedAccentColor } from "@/lib/theme";
+import { LogoMark } from "@/components/common/Logo";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
   const { toast } = useToast();
@@ -70,10 +72,10 @@ const Index = () => {
   };
 
   const loadingScreen = (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading...</p>
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background" aria-busy="true">
+      <div className="flex flex-col items-center gap-4">
+        <LogoMark className="h-9 w-9" />
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Loading" />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Brain, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
+import { Logo } from "@/components/common/Logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
@@ -140,13 +141,14 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
       activeSection={activeSection}
       onSectionChange={setActiveSection}
       onLogout={onLogout}
+      user={{ name: currentUserData.name, email: currentUserData.email }}
     />
   );
 
   return (
     <div className="flex h-[100dvh] bg-background text-foreground">
       {/* Desktop: fixed sidebar */}
-      <div className="hidden md:block w-64 flex-shrink-0">
+      <div className="hidden md:block w-60 flex-shrink-0">
         {sidebar}
       </div>
 
@@ -164,16 +166,13 @@ export const Dashboard = ({ userData, onLogout }: DashboardProps) => {
               {sidebar}
             </SheetContent>
           </Sheet>
-          <button className="flex items-center gap-2 font-bold" onClick={() => setActiveSection("dashboard")}>
-            <span className="w-7 h-7 bg-gradient-primary rounded-md flex items-center justify-center">
-              <Brain className="h-4 w-4 text-white" />
-            </span>
-            Prodify
+          <button type="button" aria-label="Prodify home" onClick={() => setActiveSection("dashboard")}>
+            <Logo />
           </button>
         </header>
 
         <main ref={mainRef} className="flex-1 overflow-auto bg-background">
-          <div className={isWorkspace ? "h-full" : "p-4 sm:p-6 lg:p-8"}>
+          <div className={isWorkspace ? "h-full" : "mx-auto w-full max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-24"}>
             {renderContent()}
           </div>
         </main>

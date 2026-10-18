@@ -141,6 +141,11 @@ async function run(email) {
       `currentStreak ${currentStreak}, todaysProblemStreak ${todaysProblemStreak}`);
     const todayAgain = await call('GET', '/progress/todays-problem', { token });
     pass("today's problem now shows as solved", todayAgain.data?.todaysProblem?.isSolved === true);
+    const solvesInCalendar = Object.values(progress.data?.activity || {}).reduce((sum, n) => sum + n, 0);
+    pass('the activity calendar counts the solves', solvesInCalendar >= 1, JSON.stringify(progress.data?.activity));
+    const recs = await call('GET', '/progress/recommendations', { token });
+    const recTitles = (recs.data?.recommendations || []).map((r) => r.title);
+    pass('tips use the fresh streak (no "Start a Streak" after solving)', recs.status === 200 && !recTitles.includes('Start a Streak'), recTitles.join(', '));
   }
 
   if (topicList[0]) {

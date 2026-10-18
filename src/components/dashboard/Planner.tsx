@@ -1,13 +1,19 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Plus, Edit, Trash2, CheckCircle, Clock, AlertCircle, CalendarDays, Target, BookOpen, Code, Bell, Mail, Play, Sparkles, LayoutGrid, List, CalendarRange, Timer, Link2, Tag, ListChecks, X, Square, CheckSquare, Zap } from "lucide-react";
+import {
+  AlertCircle, Bell, BellRing, BookOpen, Calendar, CalendarDays, CalendarRange, Check, CheckCircle2, CheckSquare,
+  ChevronDown, Circle, Clock, Code, LayoutGrid, Laptop, Link2, List, ListChecks, Pencil, Play, Plus, RotateCcw,
+  Search, Sparkles, Square, Tag, Target, Timer, Trash2, X, type LucideIcon,
+} from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -17,6 +23,10 @@ import { sendNotification } from "@/lib/notification-utils";
 import { apiService } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { describeDeadline, toLocalInputValue, fromLocalInputValue } from "@/lib/deadlines";
+import { PageHeader } from "@/components/common/PageHeader";
+import { StatTile } from "@/components/common/StatTile";
+import { EmptyState } from "@/components/common/EmptyState";
+import { DifficultyBadge } from "@/components/common/DifficultyBadge";
 import { FocusMode } from "./planner/FocusMode";
 import { KanbanView } from "./planner/KanbanView";
 import { CalendarView } from "./planner/CalendarView";
@@ -53,20 +63,31 @@ interface PlannerProps {
   userEmail?: string;
 }
 
+// Categories are neutral; colour is kept for things that mean something (priority, due dates, done)
 const CATEGORIES = [
-  { value: 'study', label: 'Study', icon: BookOpen, color: 'bg-blue-100 text-blue-800' },
-  { value: 'practice', label: 'Practice', icon: Code, color: 'bg-green-100 text-green-800' },
-  { value: 'interview', label: 'Interview', icon: Target, color: 'bg-purple-100 text-purple-800' },
-  { value: 'review', label: 'Review', icon: CalendarDays, color: 'bg-amber-100 text-amber-800' },
-  { value: 'other', label: 'Other', icon: Calendar, color: 'bg-gray-100 text-gray-800' },
+  { value: 'study', label: 'Study', icon: BookOpen },
+  { value: 'practice', label: 'Practice', icon: Code },
+  { value: 'interview', label: 'Interview', icon: Target },
+  { value: 'review', label: 'Review', icon: CalendarDays },
+  { value: 'other', label: 'Other', icon: Calendar },
 ];
 
+// Priority colours: urgent and high red, medium amber, low grey
 const PRIORITIES = [
-  { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-800' },
-  { value: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'high', label: 'High', color: 'bg-amber-100 text-amber-800' },
-  { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-800' },
+  { value: 'low', label: 'Low', color: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' },
+  { value: 'medium', label: 'Medium', color: 'bg-warning/10 text-warning', dot: 'bg-warning' },
+  { value: 'high', label: 'High', color: 'bg-destructive/10 text-destructive', dot: 'bg-destructive' },
+  { value: 'urgent', label: 'Urgent', color: 'bg-destructive/15 text-destructive', dot: 'bg-destructive' },
 ];
+
+// Small text badge, same shape as the difficulty badge
+const BADGE_CLASS = "inline-flex items-center rounded-md border border-transparent px-1.5 py-0.5 text-xs font-medium leading-4";
+
+const VIEW_MODES = [
+  { value: 'list', label: 'List View', icon: List },
+  { value: 'kanban', label: 'Kanban Board', icon: LayoutGrid },
+  { value: 'calendar', label: 'Calendar View', icon: CalendarRange },
+] as const;
 
 export const Planner = ({ userEmail }: PlannerProps) => {
   const { toast } = useToast();
@@ -248,7 +269,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
           ? { ...task, completed: true, status: 'done' as const, completedAt: new Date().toISOString() }
           : task
       ));
-      toast({ title: "Task completed 🎉" });
+      toast({ title: "Task completed" });
     } catch (error) {
       showError(error, "Couldn't complete the task");
     }
@@ -308,7 +329,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
       setShowCompletionDialog(null);
       setCompletionData({ timeSpent: '', difficulty: 'medium', notes: '' });
-      toast({ title: "Task completed 🎉" });
+      toast({ title: "Task completed" });
     } catch (error) {
       showError(error, "Couldn't complete the task");
     }
@@ -371,7 +392,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
   const getPriorityColor = (priority: string) => {
     const priorityObj = PRIORITIES.find(p => p.value === priority);
-    return priorityObj?.color || 'bg-gray-100 text-gray-800';
+    return priorityObj?.color || 'bg-muted text-muted-foreground';
   };
 
   const getCategoryIcon = (category: string) => {
@@ -399,6 +420,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     const due = describeDeadline(task.deadline);
     return task.priority === 'urgent' || due.soon || due.overdue;
   });
+  const overdueCount = urgentTasks.filter(task => describeDeadline(task.deadline).overdue).length;
 
   // Analytics
   const totalTimeSpent = completedTasks.reduce((total, task) => total + (task.timeSpent || 0), 0);
@@ -412,29 +434,65 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading your tasks...</p>
+      <div className="space-y-6" aria-busy="true">
+        <span className="sr-only">Loading your tasks...</span>
+        <Skeleton className="h-12 w-64" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px]" />)}
         </div>
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-72 w-full" />
       </div>
     );
   }
 
   if (loadFailed) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center space-y-3">
-          <p className="font-medium">Couldn't load your tasks</p>
-          <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
-          <Button onClick={loadTasks}>Try again</Button>
-        </CardContent>
+      <Card className="p-8 text-center space-y-3">
+        <p className="font-medium">Couldn't load your tasks</p>
+        <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
+        <Button onClick={loadTasks} variant="secondary" className="gap-2">
+          <RotateCcw className="h-4 w-4" /> Try again
+        </Button>
       </Card>
     );
   }
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Planner"
+        description="Plan study sessions and keep track of deadlines."
+        actions={
+          <>
+            {/* AI Smart Suggest */}
+            <Button variant="secondary" onClick={() => setShowSmartSuggest(true)} className="gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Suggest
+            </Button>
+
+            {/* Add Task */}
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Task
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[700px]">
+                <DialogHeader>
+                  <DialogTitle>New task</DialogTitle>
+                  <DialogDescription>
+                    Use a template or build your own task
+                  </DialogDescription>
+                </DialogHeader>
+                <TaskForm onSubmit={addTask} />
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
+
       {/* Focus Mode Bar */}
       {focusTask && (
         <FocusMode
@@ -445,318 +503,230 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         />
       )}
 
-      {/* Notification Settings */}
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile
+          label="Total"
+          value={tasks.length}
+          hint={`${completionRate.toFixed(1)}% completed`}
+          icon={ListChecks}
+        />
+        <StatTile
+          label="Pending"
+          value={pendingTasks.length}
+          hint={`${urgentTasks.length} due soon`}
+          icon={Clock}
+        />
+        <StatTile
+          label="Completed"
+          value={completedTasks.length}
+          hint={`${onTimeRate.toFixed(1)}% on time`}
+          icon={CheckCircle2}
+        />
+        <StatTile
+          label="Time spent"
+          value={Math.round(totalTimeSpent / 60)}
+          unit="h"
+          hint={`${Math.round(averageTimePerTask)} min avg`}
+          icon={Timer}
+        />
+      </div>
+
+      {/* Deadline reminders */}
       {userEmail && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="relative shrink-0">
-                  <Bell className="h-5 w-5 text-blue-600" />
-                  {notificationSettings.enabled && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  )}
-                </div>
-                <div>
-                  <p className="font-semibold text-blue-800">Deadline Reminders</p>
-                  <p className="text-sm text-blue-600">
-                    Email and browser reminders {notificationSettings.reminderTime >= 60 ? `${notificationSettings.reminderTime / 60} hour${notificationSettings.reminderTime === 60 ? '' : 's'}` : `${notificationSettings.reminderTime} minutes`} before a deadline, sent to {userEmail}
-                  </p>
-                  <p className="text-xs text-blue-600/80">
-                    Reminders go out while Prodify is open in one of your browser tabs.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={requestNotificationPermission}
-                  className="text-blue-700 border-blue-300"
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Enable Browser Notifications
-                </Button>
-                <Select
-                  value={notificationSettings.reminderTime.toString()}
-                  onValueChange={(value) => setNotificationSettings(prev => ({
-                    ...prev,
-                    reminderTime: parseInt(value)
-                  }))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="120">2 hours</SelectItem>
-                    <SelectItem value="1440">1 day</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Target className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Tasks</p>
-                <p className="text-2xl font-bold">{tasks.length}</p>
-                <p className="text-xs text-muted-foreground">{completionRate.toFixed(1)}% completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Clock className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">{pendingTasks.length}</p>
-                <p className="text-xs text-muted-foreground">{urgentTasks.length} urgent</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Completed</p>
-                <p className="text-2xl font-bold">{completedTasks.length}</p>
-                <p className="text-xs text-muted-foreground">{onTimeRate.toFixed(1)}% on time</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <BookOpen className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Time Spent</p>
-                <p className="text-2xl font-bold">{Math.round(totalTimeSpent / 60)}h</p>
-                <p className="text-xs text-muted-foreground">{Math.round(averageTimePerTask)}min avg</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Controls */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex gap-2 flex-wrap">
-            <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tasks</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {CATEGORIES.map(category => (
-                  <SelectItem key={category.value} value={category.value}>
-                    {category.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center border rounded-lg overflow-hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 px-3 rounded-none border-0",
-                  viewMode === 'list' && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                )}
-                onClick={() => setViewMode('list')}
-                title="List View"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 px-3 rounded-none border-0",
-                  viewMode === 'kanban' && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                )}
-                onClick={() => setViewMode('kanban')}
-                title="Kanban Board"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 px-3 rounded-none border-0",
-                  viewMode === 'calendar' && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                )}
-                onClick={() => setViewMode('calendar')}
-                title="Calendar View"
-              >
-                <CalendarRange className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            {/* AI Smart Suggest */}
-            <Button
-              variant="outline"
-              onClick={() => setShowSmartSuggest(true)}
-              className="gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
-            >
-              <Sparkles className="h-4 w-4" />
-              AI Suggest
-            </Button>
-
-            {/* Add Task */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Task
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[700px]">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-primary" />
-                    Create New Task
-                  </DialogTitle>
-                  <DialogDescription>
-                    Use a template or build your own task
-                  </DialogDescription>
-                </DialogHeader>
-                <TaskForm onSubmit={addTask} />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            placeholder="Search tasks..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="max-w-sm"
-          />
-        </div>
-      </div>
-
-      {/* Urgent Tasks Alert */}
-      {urgentTasks.length > 0 && viewMode === 'list' && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="font-semibold text-red-800">Urgent Tasks Due Soon!</p>
-                <p className="text-sm text-red-600">
-                  You have {urgentTasks.length} task(s) that need immediate attention
+        <div className="rounded-lg border bg-muted/40 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <Bell className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium text-foreground">Deadline reminders</p>
+                <p className="text-sm text-muted-foreground">
+                  Email and browser reminders {notificationSettings.reminderTime >= 60 ? `${notificationSettings.reminderTime / 60} hour${notificationSettings.reminderTime === 60 ? '' : 's'}` : `${notificationSettings.reminderTime} minutes`} before a deadline, sent to <span className="break-all text-foreground">{userEmail}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Reminders go out while Prodify is open in one of your browser tabs.
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* View Content */}
-      {viewMode === 'list' && (
-        <div className="space-y-4">
-          {filteredTasks.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                {tasks.length === 0 ? (
-                  <>
-                    <p className="text-muted-foreground mb-4">No tasks yet. Plan your first study session!</p>
-                    <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-                      <Plus className="h-4 w-4" /> Add your first task
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-muted-foreground mb-4">No tasks match your search or filters.</p>
-                    <Button variant="outline" onClick={() => { setFilter('all'); setCategoryFilter('all'); setSearchQuery(''); }}>
-                      Clear filters
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            filteredTasks.map(task => (
-              <TaskCard
-                key={task._id}
-                task={task}
-                onEdit={() => setEditingTask(task)}
-                onDelete={() => requestDelete(task._id)}
-                onToggleComplete={() => toggleTaskCompletion(task._id)}
-                onOpenCompletion={() => setShowCompletionDialog(task._id)}
-                onToggleSubtask={(index) => toggleSubtask(task._id, index)}
-                onFocus={() => startFocus(task)}
-                getPriorityColor={getPriorityColor}
-                getCategoryIcon={getCategoryIcon}
-              />
-            ))
-          )}
+            <div className="flex flex-wrap items-center gap-2 pl-7 sm:shrink-0 sm:pl-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={requestNotificationPermission}
+                className="gap-2"
+              >
+                <BellRing className="h-4 w-4" />
+                Enable Browser Notifications
+              </Button>
+              <Select
+                value={notificationSettings.reminderTime.toString()}
+                onValueChange={(value) => setNotificationSettings(prev => ({
+                  ...prev,
+                  reminderTime: parseInt(value)
+                }))}
+              >
+                <SelectTrigger className="h-9 w-32" aria-label="Remind me before a deadline">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="1440">1 day</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       )}
 
-      {viewMode === 'kanban' && (
-        <KanbanView
-          tasks={filteredTasks}
-          onStatusChange={handleStatusChange}
-          onEdit={(task) => setEditingTask(task)}
-          onDelete={requestDelete}
-          onFocus={startFocus}
-          onToggleComplete={toggleTaskCompletion}
-        />
-      )}
+      {/* Tasks: search, filters and view */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search tasks"
+              className="h-9 pl-9"
+            />
+          </div>
 
-      {viewMode === 'calendar' && (
-        <CalendarView
-          tasks={filteredTasks}
-          onToggleComplete={toggleTaskCompletion}
-          onFocus={startFocus}
-          onEdit={(task) => setEditingTask(task)}
-        />
-      )}
+          <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+            <SelectTrigger className="h-9 w-32" aria-label="Filter by status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-9 w-40" aria-label="Filter by category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map(category => (
+                <SelectItem key={category.value} value={category.value}>
+                  {category.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* View switcher */}
+          <div role="group" aria-label="View" className="ml-auto inline-flex h-9 items-center gap-0.5 rounded-md border bg-muted p-0.5">
+            {VIEW_MODES.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setViewMode(value)}
+                title={label}
+                aria-label={label}
+                aria-pressed={viewMode === value}
+                className={cn(
+                  "inline-flex h-full w-8 items-center justify-center rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  viewMode === value ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Urgent Tasks Alert */}
+        {urgentTasks.length > 0 && viewMode === 'list' && (
+          // Red only when something is already overdue; amber when it's just coming up
+          <div className={cn(
+            "flex items-start gap-3 rounded-lg border px-4 py-3",
+            overdueCount > 0 ? "border-destructive/30 bg-destructive/10" : "border-warning/30 bg-warning/10"
+          )}>
+            <AlertCircle className={cn("mt-0.5 h-4 w-4 shrink-0", overdueCount > 0 ? "text-destructive" : "text-warning")} />
+            <div className="min-w-0">
+              <p className={cn("text-sm font-medium", overdueCount > 0 ? "text-destructive" : "text-warning")}>
+                {overdueCount > 0 ? "Overdue tasks" : "Due soon"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-mono tabular-nums text-foreground">{urgentTasks.length}</span>{' '}
+                {urgentTasks.length === 1 ? 'task is' : 'tasks are'} overdue, due within 3 days, or marked urgent.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* View Content */}
+        {viewMode === 'list' && (
+          filteredTasks.length === 0 ? (
+            tasks.length === 0 ? (
+              <EmptyState
+                icon={CalendarDays}
+                title="No tasks yet"
+                description="Plan your first study session."
+                action={
+                  <Button variant="secondary" onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                    <Plus className="h-4 w-4" /> Add your first task
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Search}
+                title="No tasks match your search or filters"
+                action={
+                  <Button variant="secondary" onClick={() => { setFilter('all'); setCategoryFilter('all'); setSearchQuery(''); }}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            )
+          ) : (
+            <Card className="overflow-hidden">
+              <ul className="divide-y">
+                {filteredTasks.map(task => (
+                  <TaskCard
+                    key={task._id}
+                    task={task}
+                    onEdit={() => setEditingTask(task)}
+                    onDelete={() => requestDelete(task._id)}
+                    onToggleComplete={() => toggleTaskCompletion(task._id)}
+                    onOpenCompletion={() => setShowCompletionDialog(task._id)}
+                    onToggleSubtask={(index) => toggleSubtask(task._id, index)}
+                    onFocus={() => startFocus(task)}
+                    getPriorityColor={getPriorityColor}
+                    getCategoryIcon={getCategoryIcon}
+                  />
+                ))}
+              </ul>
+            </Card>
+          )
+        )}
+
+        {viewMode === 'kanban' && (
+          <KanbanView
+            tasks={filteredTasks}
+            onStatusChange={handleStatusChange}
+            onEdit={(task) => setEditingTask(task)}
+            onDelete={requestDelete}
+            onFocus={startFocus}
+            onToggleComplete={toggleTaskCompletion}
+          />
+        )}
+
+        {viewMode === 'calendar' && (
+          <CalendarView
+            tasks={filteredTasks}
+            onToggleComplete={toggleTaskCompletion}
+            onFocus={startFocus}
+            onEdit={(task) => setEditingTask(task)}
+          />
+        )}
+      </div>
 
       {/* Smart Suggest Dialog */}
       <SmartSuggest
@@ -771,7 +741,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
           <DialogContent className="sm:max-w-[700px]">
             <DialogHeader>
-              <DialogTitle>Edit Task</DialogTitle>
+              <DialogTitle>Edit task</DialogTitle>
               <DialogDescription>
                 Update your task details
               </DialogDescription>
@@ -789,27 +759,28 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         <Dialog open={!!showCompletionDialog} onOpenChange={() => setShowCompletionDialog(null)}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Mark Task as Completed</DialogTitle>
+              <DialogTitle>Mark task as completed</DialogTitle>
               <DialogDescription>
                 Add completion details to track your progress
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="timeSpent">Time Spent (minutes)</Label>
+                <Label htmlFor="timeSpent">Time spent (minutes)</Label>
                 <Input
                   id="timeSpent"
                   type="number"
                   placeholder="e.g., 45"
                   value={completionData.timeSpent}
                   onChange={(e) => setCompletionData({ ...completionData, timeSpent: e.target.value })}
+                  className="font-mono tabular-nums"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="difficulty">Difficulty Level</Label>
+                <Label htmlFor="difficulty">Difficulty</Label>
                 <Select value={completionData.difficulty} onValueChange={(value: any) => setCompletionData({ ...completionData, difficulty: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger id="difficulty">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -821,7 +792,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Completion Notes</Label>
+                <Label htmlFor="notes">Notes</Label>
                 <Textarea
                   id="notes"
                   placeholder="Any notes about the task completion..."
@@ -831,11 +802,12 @@ export const Planner = ({ userEmail }: PlannerProps) => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:space-x-0">
               <Button variant="outline" onClick={() => setShowCompletionDialog(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleTaskCompletion} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={handleTaskCompletion} className="gap-2">
+                <CheckCircle2 className="h-4 w-4" />
                 Mark as Completed
               </Button>
             </DialogFooter>
@@ -869,7 +841,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
 // ============ Quick Templates ============
 const QUICK_TEMPLATES: Array<{
-  emoji: string;
+  icon: LucideIcon;
   label: string;
   title: string;
   category: Task['category'];
@@ -877,12 +849,20 @@ const QUICK_TEMPLATES: Array<{
   estimatedTime: number;
   description: string;
 }> = [
-  { emoji: '📖', label: 'DSA Practice', title: 'Solve DSA Problems', category: 'practice', priority: 'high', estimatedTime: 60, description: 'Practice data structures and algorithms problems' },
-  { emoji: '🎯', label: 'Mock Interview', title: 'Mock Interview Prep', category: 'interview', priority: 'urgent', estimatedTime: 90, description: 'Practice mock interview questions and communication' },
-  { emoji: '📚', label: 'Study Topic', title: 'Study New Topic', category: 'study', priority: 'medium', estimatedTime: 45, description: 'Learn and understand a new concept' },
-  { emoji: '🔄', label: 'Revision', title: 'Revise Previous Topics', category: 'review', priority: 'medium', estimatedTime: 30, description: 'Review and reinforce previously studied topics' },
-  { emoji: '💻', label: 'Project Work', title: 'Work on Project', category: 'other', priority: 'high', estimatedTime: 120, description: 'Build or contribute to a project' },
+  { icon: Code, label: 'DSA Practice', title: 'Solve DSA Problems', category: 'practice', priority: 'high', estimatedTime: 60, description: 'Practice data structures and algorithms problems' },
+  { icon: Target, label: 'Mock Interview', title: 'Mock Interview Prep', category: 'interview', priority: 'urgent', estimatedTime: 90, description: 'Practice mock interview questions and communication' },
+  { icon: BookOpen, label: 'Study Topic', title: 'Study New Topic', category: 'study', priority: 'medium', estimatedTime: 45, description: 'Learn and understand a new concept' },
+  { icon: RotateCcw, label: 'Revision', title: 'Revise Previous Topics', category: 'review', priority: 'medium', estimatedTime: 30, description: 'Review and reinforce previously studied topics' },
+  { icon: Laptop, label: 'Project Work', title: 'Work on Project', category: 'other', priority: 'high', estimatedTime: 120, description: 'Build or contribute to a project' },
 ];
+
+// One choice in the task form (category, priority, estimate); the picked one is lit up like the active sidebar item
+const optionClass = (selected: boolean) => cn(
+  "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  selected
+    ? "border-foreground/25 bg-accent text-foreground"
+    : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+);
 
 // ============ TaskForm ============
 interface TaskFormProps {
@@ -980,11 +960,11 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+    <form onSubmit={handleSubmit} className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
       {/* Quick Templates */}
       {!task && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Quick Templates</Label>
+          <p className="eyebrow">Quick templates</p>
           <div className="flex flex-wrap gap-2">
             {QUICK_TEMPLATES.map((tmpl, i) => (
               <Button
@@ -992,10 +972,10 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1.5 hover:bg-primary/10 hover:border-primary/40"
+                className="h-8 gap-1.5 px-2.5 text-xs"
                 onClick={() => applyTemplate(tmpl)}
               >
-                <span>{tmpl.emoji}</span>
+                <tmpl.icon className="h-4 w-4 text-muted-foreground" />
                 {tmpl.label}
               </Button>
             ))}
@@ -1005,7 +985,7 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
 
       {/* Title */}
       <div className="space-y-2">
-        <Label htmlFor="title">Task Title *</Label>
+        <Label htmlFor="title">Task title *</Label>
         <Input
           id="title"
           value={formData.title}
@@ -1016,22 +996,19 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       </div>
 
       {/* Category & Priority */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label className="text-xs">Category</Label>
-          <div className="flex flex-wrap gap-2">
+          <Label>Category</Label>
+          <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map(cat => (
               <button
                 key={cat.value}
                 type="button"
+                aria-pressed={formData.category === cat.value}
                 onClick={() => setFormData({ ...formData, category: cat.value as any })}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
-                  formData.category === cat.value
-                    ? cat.color + " border-current ring-1 ring-current/20"
-                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                )}
+                className={optionClass(formData.category === cat.value)}
               >
+                <cat.icon className="h-3.5 w-3.5" />
                 {cat.label}
               </button>
             ))}
@@ -1039,20 +1016,17 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs">Priority</Label>
-          <div className="flex flex-wrap gap-2">
+          <Label>Priority</Label>
+          <div className="flex flex-wrap gap-1.5">
             {PRIORITIES.map(pri => (
               <button
                 key={pri.value}
                 type="button"
+                aria-pressed={formData.priority === pri.value}
                 onClick={() => setFormData({ ...formData, priority: pri.value as any })}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
-                  formData.priority === pri.value
-                    ? pri.color + " border-current ring-1 ring-current/20"
-                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                )}
+                className={optionClass(formData.priority === pri.value)}
               >
+                <span className={cn("h-1.5 w-1.5 rounded-full", pri.dot)} aria-hidden="true" />
                 {pri.label}
               </button>
             ))}
@@ -1061,10 +1035,10 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       </div>
 
       {/* Deadline & Estimated Time */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="deadline" className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> Deadline *
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" /> Deadline *
           </Label>
           <Input
             id="deadline"
@@ -1076,20 +1050,16 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
         </div>
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <Timer className="h-3.5 w-3.5" /> Est. Time (min)
+            <Timer className="h-3.5 w-3.5 text-muted-foreground" /> Estimated time
           </Label>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {[15, 30, 45, 60, 90, 120].map(min => (
               <button
                 key={min}
                 type="button"
+                aria-pressed={formData.estimatedTime === min}
                 onClick={() => setFormData({ ...formData, estimatedTime: min })}
-                className={cn(
-                  "px-2 py-1 rounded text-xs font-medium transition-all",
-                  formData.estimatedTime === min
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                )}
+                className={cn(optionClass(formData.estimatedTime === min), "font-mono tabular-nums")}
               >
                 {min >= 60 ? `${min / 60}h` : `${min}m`}
               </button>
@@ -1116,75 +1086,83 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
         type="button"
         variant="ghost"
         size="sm"
-        className="text-xs text-muted-foreground hover:text-foreground w-full justify-center gap-1"
+        aria-expanded={showExtras}
+        className="w-full gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         onClick={() => setShowExtras(!showExtras)}
       >
-        {showExtras ? '− Less options' : '+ Subtasks, Tags, Link'}
+        <ChevronDown className={cn("h-4 w-4 transition-transform", showExtras && "rotate-180")} />
+        {showExtras ? 'Fewer options' : 'Subtasks, tags and link'}
       </Button>
 
       {showExtras && (
         <div className="space-y-4 border-t pt-4">
           {/* Subtasks */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <ListChecks className="h-3.5 w-3.5" /> Subtasks / Checklist
+            <Label htmlFor="subtask-input" className="flex items-center gap-1.5">
+              <ListChecks className="h-3.5 w-3.5 text-muted-foreground" /> Subtasks
             </Label>
             <div className="flex gap-2">
               <Input
+                id="subtask-input"
                 value={subtaskInput}
                 onChange={(e) => setSubtaskInput(e.target.value)}
                 placeholder="Add a step..."
                 className="flex-1"
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtask(); } }}
               />
-              <Button type="button" variant="outline" size="sm" onClick={addSubtask} className="px-3">
+              <Button type="button" variant="secondary" size="icon" onClick={addSubtask} title="Add step" aria-label="Add step">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
             {formData.subtasks.length > 0 && (
-              <div className="space-y-1.5 mt-2">
+              <ul className="space-y-1">
                 {formData.subtasks.map((st, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg group">
-                    <Square className="h-4 w-4 text-muted-foreground" />
-                    <span className="flex-1 text-sm">{st.text}</span>
+                  <li key={i} className="flex items-center gap-2 rounded-md border bg-muted/40 py-1 pl-2.5 pr-1">
+                    <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 break-words text-sm">{st.text}</span>
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-500"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => removeSubtask(i)}
+                      title="Remove step"
+                      aria-label={`Remove step: ${st.text}`}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
 
           {/* Tags */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <Tag className="h-3.5 w-3.5" /> Tags
+            <Label htmlFor="tag-input" className="flex items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5 text-muted-foreground" /> Tags
             </Label>
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                placeholder="Type a tag & press Enter..."
-                className="flex-1"
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-              />
-            </div>
+            <Input
+              id="tag-input"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="Type a tag & press Enter..."
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+            />
             {formData.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
+              <div className="flex flex-wrap gap-1.5">
                 {formData.tags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs gap-1 pr-1">
+                  <span key={tag} className="chip gap-1 pr-0.5">
                     #{tag}
-                    <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500">
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      aria-label={`Remove tag ${tag}`}
+                      className="rounded-sm p-0.5 transition-colors hover:text-destructive"
+                    >
                       <X className="h-3 w-3" />
                     </button>
-                  </Badge>
+                  </span>
                 ))}
               </div>
             )}
@@ -1192,10 +1170,11 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
 
           {/* Link */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5" /> Reference Link
+            <Label htmlFor="link-input" className="flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5 text-muted-foreground" /> Reference link
             </Label>
             <Input
+              id="link-input"
               value={formData.link}
               onChange={(e) => setFormData({ ...formData, link: e.target.value })}
               placeholder="https://..."
@@ -1205,14 +1184,14 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
         </div>
       )}
 
-      <DialogFooter className="pt-2">
-        <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground w-full gap-2">
+      <DialogFooter className="pt-1">
+        <Button type="submit" disabled={isSubmitting} className="w-full gap-2">
           {isSubmitting ? (
             "Saving..."
           ) : task ? (
-            <><Edit className="h-4 w-4" /> Update Task</>
+            <><Check className="h-4 w-4" /> Update Task</>
           ) : (
-            <><Zap className="h-4 w-4" /> Create Task</>
+            <><Plus className="h-4 w-4" /> Create Task</>
           )}
         </Button>
       </DialogFooter>
@@ -1253,212 +1232,206 @@ const TaskCard = ({
   const subtaskProgress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
   const resourceUrl = safeExternalUrl(task.link);
 
+  const completeLabel = task.completed ? "Mark as incomplete" : "Mark as completed";
+
+  // One row in the task list card: checkbox, details, then the row's actions
+  // (on the right on wider screens, underneath on phones)
   return (
-    <Card className={cn(
-      "transition-all duration-200 hover:shadow-md",
-      task.completed && "opacity-60 bg-gray-50",
-      isOverdue && !task.completed && "border-red-200 bg-red-50"
-    )}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 space-y-3">
-            <div className="flex items-start gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-0.5 p-1 h-auto hover:bg-green-50"
-                onClick={onToggleComplete}
-                title={task.completed ? "Mark as incomplete" : "Mark as completed"}
-              >
-                <CheckCircle className={cn(
-                  "h-5 w-5",
-                  task.completed ? "text-green-600" : "text-gray-400 hover:text-green-600"
-                )} />
-              </Button>
+    <li className="flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-accent/50 sm:flex-row sm:items-start">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <button
+          type="button"
+          onClick={onToggleComplete}
+          title={completeLabel}
+          aria-label={completeLabel}
+          className={cn(
+            "-m-1 shrink-0 rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            task.completed ? "text-success" : "text-muted-foreground hover:text-success"
+          )}
+        >
+          {task.completed ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+        </button>
 
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <h3 className={cn(
-                    "font-semibold",
-                    task.completed && "line-through text-muted-foreground"
-                  )}>
-                    {task.title}
-                  </h3>
-                  <Badge className={getPriorityColor(task.priority)}>
-                    {PRIORITIES.find(p => p.value === task.priority)?.label}
-                  </Badge>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <CategoryIcon className="h-3 w-3" />
-                    {CATEGORIES.find(c => c.value === task.category)?.label}
-                  </Badge>
-                  {task.status === 'in_progress' && (
-                    <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
-                  )}
-                  {task.completed && (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>
-                  )}
-                  {task.estimatedTime ? (
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <Timer className="h-3 w-3" />
-                      {task.estimatedTime >= 60 ? `${task.estimatedTime / 60}h` : `${task.estimatedTime}m`}
-                    </Badge>
-                  ) : null}
-                  {!task.completed && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onOpenCompletion}
-                      title="Complete and log time spent, difficulty and notes"
-                      className="h-6 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                    >
-                      Mark Complete…
-                    </Button>
-                  )}
-                </div>
-
-                {task.description && (
-                  <p className={cn(
-                    "text-sm text-muted-foreground mb-2",
-                    task.completed && "line-through"
-                  )}>
-                    {task.description}
-                  </p>
-                )}
-
-                {/* Subtasks */}
-                {subtasksTotal > 0 && (
-                  <div className="mb-3 space-y-1.5">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${subtaskProgress}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted-foreground font-medium">{subtasksDone}/{subtasksTotal}</span>
-                    </div>
-                    {task.subtasks!.map((st, i) => (
-                      <button
-                        key={i}
-                        onClick={() => onToggleSubtask(i)}
-                        className="flex items-center gap-2 text-sm w-full text-left hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
-                      >
-                        {st.done ? (
-                          <CheckSquare className="h-4 w-4 text-primary flex-shrink-0" />
-                        ) : (
-                          <Square className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        )}
-                        <span className={cn(st.done && "line-through text-muted-foreground")}>{st.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Tags */}
-                {task.tags && task.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {task.tags.map(tag => (
-                      <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
-                        #{tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                {/* Completion Details */}
-                {task.completed && (
-                  <div className="mb-2 p-2 bg-green-50 rounded-lg">
-                    <div className="flex items-center gap-4 text-xs">
-                      {task.completedAt && (
-                        <div className="flex items-center gap-1 text-green-700">
-                          <CheckCircle className="h-3 w-3" />
-                          Completed {new Date(task.completedAt).toLocaleDateString()}
-                        </div>
-                      )}
-                      {task.timeSpent ? (
-                        <div className="flex items-center gap-1 text-blue-700">
-                          <Clock className="h-3 w-3" />
-                          {task.timeSpent}m{task.estimatedTime ? ` / ${task.estimatedTime}m est` : ''}
-                        </div>
-                      ) : null}
-                      {task.difficulty && (
-                        <div className="flex items-center gap-1 text-purple-700">
-                          <Target className="h-3 w-3" />
-                          {task.difficulty}
-                        </div>
-                      )}
-                    </div>
-                    {task.notes && (
-                      <p className="text-xs text-green-600 mt-1 italic">"{task.notes}"</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {new Date(task.deadline).toLocaleDateString()}
-                  </div>
-
-                  <div className={cn(
-                    "flex items-center gap-1",
-                    isOverdue && !task.completed && "text-red-600 font-medium",
-                    isDueSoon && "text-primary font-medium"
-                  )}>
-                    <Clock className="h-3 w-3" />
-                    {task.completed ? "Done" : due.text}
-                  </div>
-
-                  {resourceUrl && (
-                    <a
-                      href={resourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-primary hover:underline"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <Link2 className="h-3 w-3" />
-                      Resource
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className={cn(
+              "min-w-0 break-words text-sm font-medium leading-5",
+              task.completed && "line-through text-muted-foreground"
+            )}>
+              {task.title}
+            </h3>
+            <span className={cn(BADGE_CLASS, task.completed ? "bg-muted text-muted-foreground" : getPriorityColor(task.priority))}>
+              {PRIORITIES.find(p => p.value === task.priority)?.label}
+            </span>
+            <span className="chip gap-1">
+              <CategoryIcon className="h-3 w-3" />
+              {CATEGORIES.find(c => c.value === task.category)?.label}
+            </span>
+            {task.status === 'in_progress' && (
+              <Badge variant="warning">In Progress</Badge>
+            )}
+            {task.completed && (
+              <Badge variant="success">Completed</Badge>
+            )}
           </div>
 
-          <div className="flex items-center gap-1">
-            {!task.completed && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onFocus}
-                className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
-                title="Start Focus Mode"
+          {task.description && (
+            <p className={cn(
+              "break-words text-sm text-muted-foreground",
+              task.completed && "line-through"
+            )}>
+              {task.description}
+            </p>
+          )}
+
+          {/* Subtasks */}
+          {subtasksTotal > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Progress value={subtaskProgress} className="flex-1" aria-label="Subtasks done" />
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">{subtasksDone}/{subtasksTotal}</span>
+              </div>
+              <ul className="space-y-0.5">
+                {task.subtasks!.map((st, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleSubtask(i)}
+                      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-accent"
+                    >
+                      {st.done ? (
+                        <CheckSquare className="h-4 w-4 shrink-0 text-success" />
+                      ) : (
+                        <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className={cn("min-w-0 break-words", st.done && "line-through text-muted-foreground")}>{st.text}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Tags */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {task.tags.map(tag => (
+                <span key={tag} className="chip">#{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Completion Details */}
+          {task.completed && (
+            <div className="space-y-1 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {task.completedAt && (
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-success" />
+                    Completed <span className="font-mono tabular-nums">{new Date(task.completedAt).toLocaleDateString()}</span>
+                  </span>
+                )}
+                {task.timeSpent ? (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    <span className="font-mono tabular-nums">
+                      {task.timeSpent}m{task.estimatedTime ? ` / ${task.estimatedTime}m est` : ''}
+                    </span>
+                  </span>
+                ) : null}
+                {task.difficulty && <DifficultyBadge difficulty={task.difficulty} />}
+              </div>
+              {task.notes && (
+                <p className="italic">"{task.notes}"</p>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span className="font-mono tabular-nums">{new Date(task.deadline).toLocaleDateString()}</span>
+            </span>
+
+            <span className={cn(
+              "flex items-center gap-1",
+              isOverdue && !task.completed && "font-medium text-destructive",
+              isDueSoon && "font-medium text-warning"
+            )}>
+              <Clock className="h-3 w-3" />
+              {task.completed ? "Done" : due.text}
+            </span>
+
+            {task.estimatedTime ? (
+              <span className="flex items-center gap-1" title="Estimated time">
+                <Timer className="h-3 w-3" />
+                <span className="font-mono tabular-nums">
+                  {task.estimatedTime >= 60 ? `${task.estimatedTime / 60}h` : `${task.estimatedTime}m`}
+                </span>
+              </span>
+            ) : null}
+
+            {resourceUrl && (
+              <a
+                href={resourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-primary hover:underline"
+                onClick={e => e.stopPropagation()}
               >
-                <Play className="h-4 w-4" />
-              </Button>
+                <Link2 className="h-3 w-3" />
+                Resource
+              </a>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEdit}
-              className="h-8 w-8 p-0"
-              title="Edit task"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-              title="Delete task"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1 pl-8 sm:-mt-1.5 sm:pl-0">
+        {!task.completed && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenCompletion}
+            title="Complete and log time spent, difficulty and notes"
+            className="mr-1 h-8 px-2.5 text-xs"
+          >
+            Mark Complete…
+          </Button>
+        )}
+        {!task.completed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onFocus}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Start Focus Mode"
+            aria-label="Start Focus Mode"
+          >
+            <Play className="h-4 w-4" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          title="Edit task"
+          aria-label="Edit task"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDelete}
+          className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          title="Delete task"
+          aria-label="Delete task"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </li>
   );
 };
