@@ -1,35 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { Dashboard } from "@/components/dashboard/Dashboard";
+
+// Loaded only after login, so the login page downloads much less JavaScript
+const Dashboard = lazy(() => import("@/components/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
 import { apiService, SESSION_EXPIRED_EVENT, type User } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
-// Apply saved accent color on app load
-function applySavedAccentColor() {
-  try {
-    const saved = localStorage.getItem("prodify-accent-color");
-    if (!saved) return;
-    const hsl = JSON.parse(saved);
-    const parts = hsl.match(/([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
-    if (!parts) return;
-    const h = parts[1], s = parts[2];
-    const root = document.documentElement;
-    root.style.setProperty("--primary", hsl);
-    root.style.setProperty("--ring", hsl);
-    root.style.setProperty("--secondary", `${h} 100% 97%`);
-    root.style.setProperty("--secondary-foreground", hsl);
-    root.style.setProperty("--accent", `${h} 100% 95%`);
-    root.style.setProperty("--accent-foreground", hsl);
-    root.style.setProperty("--gradient-primary", `linear-gradient(135deg, hsl(${hsl}), hsl(${h} ${s}% 63%))`);
-    root.style.setProperty("--gradient-secondary", `linear-gradient(135deg, hsl(${h} 100% 97%), hsl(20 14% 96%))`);
-    root.style.setProperty("--gradient-accent", `linear-gradient(135deg, hsl(${hsl}), hsl(45 93% 47%))`);
-    root.style.setProperty("--shadow-soft", `0 4px 20px hsl(${hsl} / 0.1)`);
-    root.style.setProperty("--shadow-medium", `0 8px 30px hsl(${hsl} / 0.15)`);
-    root.style.setProperty("--shadow-strong", `0 12px 40px hsl(${hsl} / 0.2)`);
-  } catch {
-    // Ignore a malformed saved color and keep the default theme
-  }
-}
+import { applySavedAccentColor } from "@/lib/theme";
 
 const Index = () => {
   const { toast } = useToast();
@@ -93,22 +69,28 @@ const Index = () => {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+  const loadingScreen = (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
-    );
+    </div>
+  );
+
+  if (isLoading) {
+    return loadingScreen;
   }
 
   if (!isAuthenticated || !userData) {
     return <LoginForm onLogin={handleLogin} />;
   }
 
-  return <Dashboard userData={userData} onLogout={handleLogout} />;
+  return (
+    <Suspense fallback={loadingScreen}>
+      <Dashboard userData={userData} onLogout={handleLogout} />
+    </Suspense>
+  );
 };
 
 export default Index;

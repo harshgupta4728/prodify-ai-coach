@@ -8,6 +8,11 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Brand colour (the accent picker in Settings changes only these three) */
+    --brand-h: 24;
+    --brand-s: 95%;
+    --brand-l: 53%;
+
     --background: 0 0% 100%;
     --foreground: 220 13% 18%;
 
@@ -17,24 +22,24 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 220 13% 18%;
 
-    --primary: 24 95% 53%;
+    --primary: var(--brand-h) var(--brand-s) var(--brand-l);
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 24 100% 97%;
-    --secondary-foreground: 24 95% 53%;
+    --secondary: var(--brand-h) 100% 97%;
+    --secondary-foreground: var(--primary);
 
     --muted: 20 14% 96%;
     --muted-foreground: 220 8.9% 46.1%;
 
-    --accent: 24 100% 95%;
-    --accent-foreground: 24 95% 53%;
+    --accent: var(--brand-h) 100% 95%;
+    --accent-foreground: var(--primary);
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 20 5.9% 90%;
     --input: 20 5.9% 90%;
-    --ring: 24 95% 53%;
+    --ring: var(--primary);
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
@@ -42,14 +47,14 @@ All colors MUST be HSL.
     --warning: 45 93% 47%;
     --warning-foreground: 0 0% 100%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(24 95% 53%), hsl(24 95% 63%));
-    --gradient-secondary: linear-gradient(135deg, hsl(24 100% 97%), hsl(20 14% 96%));
-    --gradient-accent: linear-gradient(135deg, hsl(24 95% 53%), hsl(45 93% 47%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--brand-h) var(--brand-s) 63%));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-h) 100% 97%), hsl(20 14% 96%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--primary)), hsl(45 93% 47%));
     --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(0 0% 98%));
 
-    --shadow-soft: 0 4px 20px hsl(24 95% 53% / 0.1);
-    --shadow-medium: 0 8px 30px hsl(24 95% 53% / 0.15);
-    --shadow-strong: 0 12px 40px hsl(24 95% 53% / 0.2);
+    --shadow-soft: 0 4px 20px hsl(var(--primary) / 0.1);
+    --shadow-medium: 0 8px 30px hsl(var(--primary) / 0.15);
+    --shadow-strong: 0 12px 40px hsl(var(--primary) / 0.2);
 
     --radius: 0.5rem;
 
@@ -80,8 +85,8 @@ All colors MUST be HSL.
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: var(--brand-h) var(--brand-s) var(--brand-l);
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -97,11 +102,11 @@ All colors MUST be HSL.
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: var(--primary);
     
-    --gradient-primary: linear-gradient(135deg, hsl(24 95% 53%), hsl(24 95% 63%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--brand-h) var(--brand-s) 63%));
     --gradient-secondary: linear-gradient(135deg, hsl(217.2 32.6% 17.5%), hsl(222.2 84% 4.9%));
-    --gradient-accent: linear-gradient(135deg, hsl(24 95% 53%), hsl(45 93% 47%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--primary)), hsl(45 93% 47%));
     --gradient-card: linear-gradient(135deg, hsl(222.2 84% 4.9%), hsl(217.2 32.6% 17.5%));
     
     --sidebar-background: 240 5.9% 10%;
@@ -124,3 +129,89 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Dark mode for the light status tints used across the app (bg-green-50, text-red-800, ...).
+   :where() keeps these at the same priority as the original class, so any explicit
+   dark: class on an element still wins. Regenerate if you add new tint classes. */
+.dark :where(.bg-amber-100) { background-color: rgb(245 158 11 / 0.15); }
+.dark :where(.bg-amber-50) { background-color: rgb(245 158 11 / 0.1); }
+.dark :where(.bg-blue-100) { background-color: rgb(59 130 246 / 0.15); }
+.dark :where(.bg-blue-50) { background-color: rgb(59 130 246 / 0.1); }
+.dark :where(.bg-blue-50\/50) { background-color: rgb(59 130 246 / 0.1); }
+.dark :where(.bg-cyan-100) { background-color: rgb(6 182 212 / 0.15); }
+.dark :where(.bg-cyan-50) { background-color: rgb(6 182 212 / 0.1); }
+.dark :where(.bg-emerald-50) { background-color: rgb(16 185 129 / 0.1); }
+.dark :where(.bg-gray-100) { background-color: rgb(107 114 128 / 0.15); }
+.dark :where(.bg-gray-200) { background-color: rgb(107 114 128 / 0.22); }
+.dark :where(.bg-gray-50) { background-color: rgb(107 114 128 / 0.1); }
+.dark :where(.bg-green-100) { background-color: rgb(34 197 94 / 0.15); }
+.dark :where(.bg-green-200) { background-color: rgb(34 197 94 / 0.22); }
+.dark :where(.bg-green-50) { background-color: rgb(34 197 94 / 0.1); }
+.dark :where(.bg-green-50\/30) { background-color: rgb(34 197 94 / 0.1); }
+.dark :where(.bg-green-50\/50) { background-color: rgb(34 197 94 / 0.1); }
+.dark :where(.bg-indigo-50) { background-color: rgb(99 102 241 / 0.1); }
+.dark :where(.bg-orange-100) { background-color: rgb(249 115 22 / 0.15); }
+.dark :where(.bg-orange-50) { background-color: rgb(249 115 22 / 0.1); }
+.dark :where(.bg-pink-50) { background-color: rgb(236 72 153 / 0.1); }
+.dark :where(.bg-purple-100) { background-color: rgb(168 85 247 / 0.15); }
+.dark :where(.bg-purple-50) { background-color: rgb(168 85 247 / 0.1); }
+.dark :where(.bg-red-100) { background-color: rgb(239 68 68 / 0.15); }
+.dark :where(.bg-red-200) { background-color: rgb(239 68 68 / 0.22); }
+.dark :where(.bg-red-50) { background-color: rgb(239 68 68 / 0.1); }
+.dark :where(.bg-rose-50) { background-color: rgb(244 63 94 / 0.1); }
+.dark :where(.bg-slate-100) { background-color: rgb(100 116 139 / 0.15); }
+.dark :where(.bg-slate-50) { background-color: rgb(100 116 139 / 0.1); }
+.dark :where(.bg-slate-50\/50) { background-color: rgb(100 116 139 / 0.1); }
+.dark :where(.bg-teal-50) { background-color: rgb(20 184 166 / 0.1); }
+.dark :where(.bg-violet-50) { background-color: rgb(139 92 246 / 0.1); }
+.dark :where(.bg-yellow-100) { background-color: rgb(234 179 8 / 0.15); }
+.dark :where(.bg-yellow-50) { background-color: rgb(234 179 8 / 0.1); }
+.dark :where(.border-amber-200) { border-color: rgb(245 158 11 / 0.3); }
+.dark :where(.border-blue-200) { border-color: rgb(59 130 246 / 0.3); }
+.dark :where(.border-blue-300) { border-color: rgb(59 130 246 / 0.45); }
+.dark :where(.border-green-200) { border-color: rgb(34 197 94 / 0.3); }
+.dark :where(.border-red-200) { border-color: rgb(239 68 68 / 0.3); }
+.dark :where(.border-violet-300) { border-color: rgb(139 92 246 / 0.45); }
+.dark :where(.border-yellow-200) { border-color: rgb(234 179 8 / 0.3); }
+.dark :where(.hover\:bg-green-100):hover { background-color: rgb(34 197 94 / 0.15); }
+.dark :where(.hover\:bg-green-50):hover { background-color: rgb(34 197 94 / 0.1); }
+.dark :where(.hover\:bg-red-50):hover { background-color: rgb(239 68 68 / 0.1); }
+.dark :where(.hover\:bg-violet-50):hover { background-color: rgb(139 92 246 / 0.1); }
+.dark :where(.hover\:text-blue-700):hover { color: rgb(147 197 253); }
+.dark :where(.hover\:text-green-600):hover { color: rgb(74 222 128); }
+.dark :where(.hover\:text-red-600):hover { color: rgb(248 113 113); }
+.dark :where(.hover\:text-red-700):hover { color: rgb(252 165 165); }
+.dark :where(.text-amber-600) { color: rgb(251 191 36); }
+.dark :where(.text-amber-700) { color: rgb(252 211 77); }
+.dark :where(.text-amber-800) { color: rgb(252 211 77); }
+.dark :where(.text-blue-600) { color: rgb(96 165 250); }
+.dark :where(.text-blue-700) { color: rgb(147 197 253); }
+.dark :where(.text-blue-800) { color: rgb(147 197 253); }
+.dark :where(.text-cyan-600) { color: rgb(34 211 238); }
+.dark :where(.text-cyan-800) { color: rgb(103 232 249); }
+.dark :where(.text-emerald-600) { color: rgb(52 211 153); }
+.dark :where(.text-gray-600) { color: rgb(156 163 175); }
+.dark :where(.text-gray-700) { color: rgb(209 213 219); }
+.dark :where(.text-gray-800) { color: rgb(209 213 219); }
+.dark :where(.text-green-600) { color: rgb(74 222 128); }
+.dark :where(.text-green-700) { color: rgb(134 239 172); }
+.dark :where(.text-green-800) { color: rgb(134 239 172); }
+.dark :where(.text-indigo-600) { color: rgb(129 140 248); }
+.dark :where(.text-orange-600) { color: rgb(251 146 60); }
+.dark :where(.text-orange-700) { color: rgb(253 186 116); }
+.dark :where(.text-pink-600) { color: rgb(244 114 182); }
+.dark :where(.text-purple-600) { color: rgb(192 132 252); }
+.dark :where(.text-purple-700) { color: rgb(216 180 254); }
+.dark :where(.text-purple-800) { color: rgb(216 180 254); }
+.dark :where(.text-red-600) { color: rgb(248 113 113); }
+.dark :where(.text-red-700) { color: rgb(252 165 165); }
+.dark :where(.text-red-800) { color: rgb(252 165 165); }
+.dark :where(.text-rose-600) { color: rgb(251 113 133); }
+.dark :where(.text-slate-600) { color: rgb(148 163 184); }
+.dark :where(.text-slate-800) { color: rgb(203 213 225); }
+.dark :where(.text-teal-600) { color: rgb(45 212 191); }
+.dark :where(.text-violet-600) { color: rgb(167 139 250); }
+.dark :where(.text-violet-700) { color: rgb(196 181 253); }
+.dark :where(.text-yellow-600) { color: rgb(250 204 21); }
+.dark :where(.text-yellow-700) { color: rgb(253 224 71); }
+.dark :where(.text-yellow-800) { color: rgb(253 224 71); }

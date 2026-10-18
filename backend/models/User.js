@@ -63,6 +63,11 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: Date.now
+  },
+  // Stored in every login token; increasing it ("sign out of all devices") invalidates them all
+  tokenVersion: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
@@ -101,6 +106,7 @@ userSchema.methods.toJSON = function() {
   try {
     const user = this.toObject();
     delete user.password;
+    delete user.tokenVersion;
     return user;
   } catch (error) {
     console.error('Error in toJSON method:', error);

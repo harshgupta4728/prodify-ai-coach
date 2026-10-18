@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock, Calendar, Edit, Trash2, Play, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { describeDeadline } from "@/lib/deadlines";
 
 interface Task {
   _id: string;
@@ -68,13 +69,6 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
       const taskStatus = t.status || (t.completed ? 'done' : 'todo');
       return taskStatus === status;
     });
-  };
-
-  const getDaysUntilDeadline = (deadline: string) => {
-    const today = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -145,8 +139,8 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
                 </div>
               ) : (
                 columnTasks.map(task => {
-                  const daysLeft = getDaysUntilDeadline(task.deadline);
-                  const isOverdue = daysLeft < 0 && !task.completed;
+                  const due = describeDeadline(task.deadline);
+                  const isOverdue = due.overdue && !task.completed;
                   const isDragging = draggedId === task._id;
 
                   return (
@@ -193,12 +187,7 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
                             isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
                           )}>
                             <Clock className="h-3 w-3" />
-                            {isOverdue
-                              ? `${Math.abs(daysLeft)}d overdue`
-                              : daysLeft === 0
-                              ? "Due today"
-                              : `${daysLeft}d left`
-                            }
+                            <span title={due.text}>{task.completed ? "Done" : due.short}</span>
                           </div>
 
                           {/* Actions */}

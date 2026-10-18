@@ -19,7 +19,7 @@ const problems = [
         explanation: "Because nums[0] + nums[1] == 9, we return [0, 1]."
       }
     ],
-    constraints: ["2 <= nums.length <= 104", "-109 <= nums[i] <= 109", "-109 <= target <= 109"],
+    constraints: ["2 <= nums.length <= 10^4", "-10^9 <= nums[i] <= 10^9", "-10^9 <= target <= 10^9"],
     hints: ["Use a hash map to store complements", "Check if target - current number exists in map"],
     approach: "Use a hash map to store each number and its index. For each number, check if target - number exists in the map.",
     acceptanceRate: 85,
@@ -42,7 +42,7 @@ const problems = [
         explanation: "Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6-1 = 5."
       }
     ],
-    constraints: ["1 <= prices.length <= 105", "0 <= prices[i] <= 104"],
+    constraints: ["1 <= prices.length <= 10^5", "0 <= prices[i] <= 10^4"],
     hints: ["Keep track of minimum price seen so far", "Update max profit if current price - min price is greater"],
     approach: "Keep track of the minimum price seen so far and update the maximum profit if selling at current price gives better profit.",
     acceptanceRate: 78,
@@ -65,7 +65,7 @@ const problems = [
         explanation: "The subarray [4,-1,2,1] has the largest sum 6."
       }
     ],
-    constraints: ["1 <= nums.length <= 105", "-104 <= nums[i] <= 104"],
+    constraints: ["1 <= nums.length <= 10^5", "-10^4 <= nums[i] <= 10^4"],
     hints: ["Use Kadane's algorithm", "Keep track of current sum and max sum"],
     approach: "Use Kadane's algorithm: keep track of current sum and maximum sum. If current sum becomes negative, reset it to 0.",
     acceptanceRate: 72,
@@ -88,7 +88,7 @@ const problems = [
         explanation: "answer[0] = 2*3*4 = 24, answer[1] = 1*3*4 = 12, etc."
       }
     ],
-    constraints: ["2 <= nums.length <= 105", "-30 <= nums[i] <= 30"],
+    constraints: ["2 <= nums.length <= 10^5", "-30 <= nums[i] <= 30"],
     hints: ["Use prefix and suffix products", "Calculate products from left and right"],
     approach: "Calculate prefix products from left to right, then multiply with suffix products from right to left.",
     acceptanceRate: 68,
@@ -111,7 +111,7 @@ const problems = [
         explanation: "The maximum area is obtained by choosing height[1] = 8 and height[8] = 7."
       }
     ],
-    constraints: ["n == height.length", "2 <= n <= 105", "0 <= height[i] <= 104"],
+    constraints: ["n == height.length", "2 <= n <= 10^5", "0 <= height[i] <= 10^4"],
     hints: ["Use two pointers", "Move the pointer with smaller height"],
     approach: "Use two pointers at the ends. Calculate area and move the pointer with smaller height inward.",
     acceptanceRate: 65,
@@ -136,7 +136,7 @@ const problems = [
         explanation: "Simple valid parentheses."
       }
     ],
-    constraints: ["1 <= s.length <= 104", "s consists of parentheses only '()[]{}'"],
+    constraints: ["1 <= s.length <= 10^4", "s consists of parentheses only '()[]{}'"],
     hints: ["Use a stack", "Push opening brackets, pop and match closing brackets"],
     approach: "Use a stack to keep track of opening brackets. When encountering a closing bracket, pop from stack and check if it matches.",
     acceptanceRate: 80,
@@ -159,7 +159,7 @@ const problems = [
         explanation: "The answer is 'abc', with the length of 3."
       }
     ],
-    constraints: ["0 <= s.length <= 5 * 104", "s consists of English letters, digits, symbols and spaces"],
+    constraints: ["0 <= s.length <= 5 * 10^4", "s consists of English letters, digits, symbols and spaces"],
     hints: ["Use sliding window", "Keep track of character positions"],
     approach: "Use sliding window with two pointers. Keep track of character positions and update window when duplicate found.",
     acceptanceRate: 75,
@@ -205,7 +205,7 @@ const problems = [
         explanation: "Group strings that are anagrams of each other."
       }
     ],
-    constraints: ["1 <= strs.length <= 104", "0 <= strs[i].length <= 100"],
+    constraints: ["1 <= strs.length <= 10^4", "0 <= strs[i].length <= 100"],
     hints: ["Use sorted string as key", "Group by character count"],
     approach: "Use sorted string or character count as key to group anagrams together.",
     acceptanceRate: 75,
@@ -228,7 +228,7 @@ const problems = [
         explanation: "Both strings contain the same characters."
       }
     ],
-    constraints: ["1 <= s.length, t.length <= 5 * 104", "s and t consist of lowercase English letters"],
+    constraints: ["1 <= s.length, t.length <= 5 * 10^4", "s and t consist of lowercase English letters"],
     hints: ["Count characters", "Compare character frequencies"],
     approach: "Count characters in both strings and compare the frequencies.",
     acceptanceRate: 85,
@@ -276,7 +276,7 @@ const problems = [
         explanation: "There is a cycle in the linked list, where the tail connects to the 1st node (0-indexed)."
       }
     ],
-    constraints: ["The number of the nodes in the list is in the range [0, 104]", "-105 <= Node.val <= 105"],
+    constraints: ["The number of the nodes in the list is in the range [0, 10^4]", "-10^5 <= Node.val <= 10^5"],
     hints: ["Use Floyd's cycle detection", "Fast and slow pointers"],
     approach: "Use Floyd's cycle detection algorithm with fast and slow pointers.",
     acceptanceRate: 78,
@@ -370,7 +370,7 @@ const problems = [
         explanation: "The maximum depth is 3."
       }
     ],
-    constraints: ["The number of nodes in the tree is in the range [0, 104]", "-100 <= Node.val <= 100"],
+    constraints: ["The number of nodes in the tree is in the range [0, 10^4]", "-100 <= Node.val <= 100"],
     hints: ["Use recursion", "Return 1 + max(left, right)"],
     approach: "Use recursion to find the maximum depth of left and right subtrees, then return 1 + max of them.",
     acceptanceRate: 85,
@@ -393,7 +393,7 @@ const problems = [
         explanation: "Valid BST."
       }
     ],
-    constraints: ["The number of nodes in the tree is in the range [1, 104]", "-231 <= Node.val <= 231 - 1"],
+    constraints: ["The number of nodes in the tree is in the range [1, 10^4]", "-2^31 <= Node.val <= 2^31 - 1"],
     hints: ["Use inorder traversal", "Check if values are in ascending order"],
     approach: "Use inorder traversal to check if values are in ascending order, or use recursion with min/max bounds.",
     acceptanceRate: 75,
@@ -462,7 +462,7 @@ const problems = [
         explanation: "The LCA of nodes 2 and 8 is 6."
       }
     ],
-    constraints: ["The number of nodes in the tree is in the range [2, 105]", "-109 <= Node.val <= 109"],
+    constraints: ["The number of nodes in the tree is in the range [2, 10^5]", "-10^9 <= Node.val <= 10^9"],
     hints: ["Use BST property", "If both nodes are on same side, go that way"],
     approach: "Use BST property: if both nodes are on the same side of current node, go that way; otherwise current node is LCA.",
     acceptanceRate: 70,
@@ -556,7 +556,7 @@ const problems = [
         explanation: "Cells that can flow to both oceans."
       }
     ],
-    constraints: ["m == heights.length", "n == heights[r].length", "1 <= m, n <= 200", "0 <= heights[r][c] <= 105"],
+    constraints: ["m == heights.length", "n == heights[r].length", "1 <= m, n <= 200", "0 <= heights[r][c] <= 10^5"],
     hints: ["Start from ocean edges", "Use DFS from both oceans"],
     approach: "Start DFS from Pacific and Atlantic edges separately. Cells that can be reached from both oceans are the answer.",
     acceptanceRate: 60,
@@ -650,7 +650,7 @@ const problems = [
         explanation: "The longest increasing subsequence is [2,3,7,101], therefore the length is 4."
       }
     ],
-    constraints: ["1 <= nums.length <= 2500", "-104 <= nums[i] <= 104"],
+    constraints: ["1 <= nums.length <= 2500", "-10^4 <= nums[i] <= 10^4"],
     hints: ["Use DP", "For each element, check all previous elements"],
     approach: "Use dynamic programming. For each element, check all previous elements and update the LIS length.",
     acceptanceRate: 70,
@@ -673,7 +673,7 @@ const problems = [
         explanation: "11 = 5 + 5 + 1"
       }
     ],
-    constraints: ["1 <= coins.length <= 12", "1 <= coins[i] <= 231 - 1", "0 <= amount <= 104"],
+    constraints: ["1 <= coins.length <= 12", "1 <= coins[i] <= 2^31 - 1", "0 <= amount <= 10^4"],
     hints: ["Use DP", "dp[i] = min(dp[i], dp[i-coin] + 1)"],
     approach: "Use dynamic programming. dp[i] represents minimum coins needed for amount i. dp[i] = min(dp[i], dp[i-coin] + 1) for each coin.",
     acceptanceRate: 65,
@@ -721,7 +721,7 @@ const problems = [
         explanation: "Jump 1 step from index 0 to 1, then 3 steps to the last index."
       }
     ],
-    constraints: ["1 <= nums.length <= 104", "0 <= nums[i] <= 105"],
+    constraints: ["1 <= nums.length <= 10^4", "0 <= nums[i] <= 10^5"],
     hints: ["Track the maximum reachable position", "If current position > max reachable, return false"],
     approach: "Track the maximum reachable position. If at any point current position exceeds max reachable, return false.",
     acceptanceRate: 75,
@@ -744,7 +744,7 @@ const problems = [
         explanation: "Start at station 3 (index 3) and fill up with 4 unit of gas."
       }
     ],
-    constraints: ["n == gas.length == cost.length", "1 <= n <= 105", "0 <= gas[i], cost[i] <= 104"],
+    constraints: ["n == gas.length == cost.length", "1 <= n <= 10^5", "0 <= gas[i], cost[i] <= 10^4"],
     hints: ["If total gas < total cost, impossible", "Track cumulative gas - cost"],
     approach: "If total gas < total cost, return -1. Otherwise, find the starting point where cumulative gas - cost never becomes negative.",
     acceptanceRate: 70,
@@ -767,7 +767,7 @@ const problems = [
         explanation: "A -> B -> idle -> A -> B -> idle -> A -> B"
       }
     ],
-    constraints: ["1 <= tasks.length <= 104", "tasks[i] is upper-case English letter", "0 <= n <= 100"],
+    constraints: ["1 <= tasks.length <= 10^4", "tasks[i] is upper-case English letter", "0 <= n <= 100"],
     hints: ["Count frequency of each task", "Use greedy approach with most frequent task"],
     approach: "Count frequency of each task. Use greedy approach: schedule most frequent task first, then others.",
     acceptanceRate: 65,
@@ -813,7 +813,7 @@ const problems = [
         explanation: "One way is to shoot one arrow for example at x = 6 (bursting the balloons [2,8] and [1,6]) and another arrow at x = 11 (bursting the other two balloons)."
       }
     ],
-    constraints: ["1 <= points.length <= 105", "points[i].length == 2", "-231 <= xstart < xend <= 231 - 1"],
+    constraints: ["1 <= points.length <= 10^5", "points[i].length == 2", "-2^31 <= xstart < xend <= 2^31 - 1"],
     hints: ["Sort by end points", "Use greedy approach"],
     approach: "Sort balloons by end points. Use greedy approach: shoot arrow at end of first balloon, then skip all balloons that can be burst by this arrow.",
     acceptanceRate: 75,
@@ -955,7 +955,7 @@ const problems = [
         explanation: "9 exists in nums and its index is 4"
       }
     ],
-    constraints: ["1 <= nums.length <= 104", "-104 < nums[i], target < 104", "All the integers in nums are unique", "nums is sorted in ascending order"],
+    constraints: ["1 <= nums.length <= 10^4", "-10^4 < nums[i], target < 10^4", "All the integers in nums are unique", "nums is sorted in ascending order"],
     hints: ["Use binary search", "Compare target with middle element"],
     approach: "Use binary search. Compare target with middle element, then search left or right half accordingly.",
     acceptanceRate: 90,
@@ -978,7 +978,7 @@ const problems = [
         explanation: "0 is at index 4"
       }
     ],
-    constraints: ["1 <= nums.length <= 5000", "-104 <= nums[i] <= 104", "All values of nums are unique", "nums is an ascending array that is possibly rotated"],
+    constraints: ["1 <= nums.length <= 5000", "-10^4 <= nums[i] <= 10^4", "All values of nums are unique", "nums is an ascending array that is possibly rotated"],
     hints: ["Use binary search", "Check which half is sorted", "Compare target with sorted half"],
     approach: "Use binary search. Check which half is sorted, then compare target with the sorted half to determine search direction.",
     acceptanceRate: 70,
@@ -1001,7 +1001,7 @@ const problems = [
         explanation: "8 appears at positions 3 and 4"
       }
     ],
-    constraints: ["0 <= nums.length <= 105", "-109 <= nums[i] <= 109", "nums is a non-decreasing array", "-109 <= target <= 109"],
+    constraints: ["0 <= nums.length <= 10^5", "-10^9 <= nums[i] <= 10^9", "nums is a non-decreasing array", "-10^9 <= target <= 10^9"],
     hints: ["Use binary search twice", "Find first occurrence", "Find last occurrence"],
     approach: "Use binary search twice: once to find first occurrence, once to find last occurrence.",
     acceptanceRate: 65,
@@ -1024,7 +1024,7 @@ const problems = [
         explanation: "3 exists in the matrix"
       }
     ],
-    constraints: ["m == matrix.length", "n == matrix[i].length", "1 <= m, n <= 100", "-104 <= matrix[i][j], target <= 104"],
+    constraints: ["m == matrix.length", "n == matrix[i].length", "1 <= m, n <= 100", "-10^4 <= matrix[i][j], target <= 10^4"],
     hints: ["Treat matrix as sorted array", "Use binary search", "Convert 2D to 1D"],
     approach: "Treat the matrix as a sorted array. Use binary search with row and column calculations.",
     acceptanceRate: 75,
@@ -1072,7 +1072,7 @@ const problems = [
         explanation: "The sum of 2 and 7 is 9. Therefore, index1 = 1, index2 = 2. We return [1, 2]."
       }
     ],
-    constraints: ["2 <= numbers.length <= 3 * 104", "-1000 <= numbers[i] <= 1000", "numbers is sorted in non-decreasing order", "-1000 <= target <= 1000"],
+    constraints: ["2 <= numbers.length <= 3 * 10^4", "-1000 <= numbers[i] <= 1000", "numbers is sorted in non-decreasing order", "-1000 <= target <= 1000"],
     hints: ["Use two pointers", "Start from ends", "Move pointer based on sum"],
     approach: "Use two pointers starting from both ends. Move left pointer if sum is too small, right pointer if sum is too large.",
     acceptanceRate: 80,
@@ -1095,7 +1095,7 @@ const problems = [
         explanation: "The triplets that sum to zero."
       }
     ],
-    constraints: ["3 <= nums.length <= 3000", "-105 <= nums[i] <= 105"],
+    constraints: ["3 <= nums.length <= 3000", "-10^5 <= nums[i] <= 10^5"],
     hints: ["Sort array", "Use two pointers", "Avoid duplicates"],
     approach: "Sort array, then use two pointers for each fixed element. Avoid duplicates by skipping same elements.",
     acceptanceRate: 70,
@@ -1118,7 +1118,7 @@ const problems = [
         explanation: "The elevation map is represented by array [0,1,0,2,1,0,1,3,2,1,2,1]. In this case, 6 units of rain water are being trapped."
       }
     ],
-    constraints: ["n == height.length", "1 <= n <= 2 * 104", "0 <= height[i] <= 105"],
+    constraints: ["n == height.length", "1 <= n <= 2 * 10^4", "0 <= height[i] <= 10^5"],
     hints: ["Use two pointers", "Track left and right max", "Water trapped = min(leftMax, rightMax) - height[i]"],
     approach: "Use two pointers. Track left and right maximum heights. Water trapped at each position is min(leftMax, rightMax) - height[i].",
     acceptanceRate: 60,
@@ -1141,7 +1141,7 @@ const problems = [
         explanation: "Your function should return k = 2, with the first two elements of nums being 1 and 2 respectively."
       }
     ],
-    constraints: ["1 <= nums.length <= 3 * 104", "-100 <= nums[i] <= 100", "nums is sorted in non-decreasing order"],
+    constraints: ["1 <= nums.length <= 3 * 10^4", "-100 <= nums[i] <= 100", "nums is sorted in non-decreasing order"],
     hints: ["Use two pointers", "One for reading, one for writing", "Skip duplicates"],
     approach: "Use two pointers: one for reading, one for writing. Skip duplicates and write unique elements.",
     acceptanceRate: 85,
@@ -1189,7 +1189,7 @@ const problems = [
         explanation: "The minimum window substring 'BANC' includes 'A', 'B', and 'C' from string t."
       }
     ],
-    constraints: ["m == s.length", "n == t.length", "1 <= m, n <= 105", "s and t consist of uppercase and lowercase English letters"],
+    constraints: ["m == s.length", "n == t.length", "1 <= m, n <= 10^5", "s and t consist of uppercase and lowercase English letters"],
     hints: ["Use sliding window", "Track character counts", "Expand and contract window"],
     approach: "Use sliding window with two pointers. Expand window until all characters are found, then contract to find minimum.",
     acceptanceRate: 55,
@@ -1212,7 +1212,7 @@ const problems = [
         explanation: "The answer is 'abc', with the length of 3."
       }
     ],
-    constraints: ["0 <= s.length <= 5 * 104", "s consists of English letters, digits, symbols and spaces"],
+    constraints: ["0 <= s.length <= 5 * 10^4", "s consists of English letters, digits, symbols and spaces"],
     hints: ["Use sliding window", "Track character positions", "Update window when duplicate found"],
     approach: "Use sliding window with two pointers. Keep track of character positions and update window when duplicate found.",
     acceptanceRate: 75,
@@ -1235,7 +1235,7 @@ const problems = [
         explanation: "Maximum values in each sliding window."
       }
     ],
-    constraints: ["1 <= nums.length <= 105", "-104 <= nums[i] <= 104", "1 <= k <= nums.length"],
+    constraints: ["1 <= nums.length <= 10^5", "-10^4 <= nums[i] <= 10^4", "1 <= k <= nums.length"],
     hints: ["Use monotonic deque", "Keep track of maximum", "Remove elements outside window"],
     approach: "Use monotonic deque to keep track of maximum elements. Remove elements outside window and smaller elements.",
     acceptanceRate: 60,
@@ -1258,7 +1258,7 @@ const problems = [
         explanation: "s2 contains one permutation of s1 ('ba')."
       }
     ],
-    constraints: ["1 <= s1.length, s2.length <= 104", "s1 and s2 consist of lowercase English letters"],
+    constraints: ["1 <= s1.length, s2.length <= 10^4", "s1 and s2 consist of lowercase English letters"],
     hints: ["Use sliding window", "Compare character counts", "Window size equals s1 length"],
     approach: "Use sliding window of size s1.length. Compare character counts between window and s1.",
     acceptanceRate: 70,
@@ -1281,7 +1281,7 @@ const problems = [
         explanation: "Maximum average is (12 - 5 - 6 + 50) / 4 = 51 / 4 = 12.75"
       }
     ],
-    constraints: ["n == nums.length", "1 <= k <= n <= 105", "-104 <= nums[i] <= 104"],
+    constraints: ["n == nums.length", "1 <= k <= n <= 10^5", "-10^4 <= nums[i] <= 10^4"],
     hints: ["Use sliding window", "Calculate sum of first k elements", "Slide window and update sum"],
     approach: "Use sliding window. Calculate sum of first k elements, then slide window and update sum by adding new element and removing old element.",
     acceptanceRate: 80,
@@ -1306,7 +1306,7 @@ const problems = [
         explanation: "Simple valid parentheses."
       }
     ],
-    constraints: ["1 <= s.length <= 104", "s consists of parentheses only '()[]{}'"],
+    constraints: ["1 <= s.length <= 10^4", "s consists of parentheses only '()[]{}'"],
     hints: ["Use a stack", "Push opening brackets, pop and match closing brackets"],
     approach: "Use a stack to keep track of opening brackets. When encountering a closing bracket, pop from stack and check if it matches.",
     acceptanceRate: 80,
@@ -1329,7 +1329,7 @@ const problems = [
         explanation: "MinStack minStack = new MinStack(); minStack.push(-2); minStack.push(0); minStack.push(-3); minStack.getMin(); // return -3"
       }
     ],
-    constraints: ["-231 <= val <= 231 - 1", "Methods pop, top and getMin operations will always be called on non-empty stacks", "At most 3 * 104 calls will be made to push, pop, top, and getMin"],
+    constraints: ["-2^31 <= val <= 2^31 - 1", "Methods pop, top and getMin operations will always be called on non-empty stacks", "At most 3 * 10^4 calls will be made to push, pop, top, and getMin"],
     hints: ["Use two stacks", "One for elements, one for minimums", "Track minimum at each step"],
     approach: "Use two stacks: one for elements, one for minimums. For each push, also push current minimum to min stack.",
     acceptanceRate: 75,
@@ -1352,7 +1352,7 @@ const problems = [
         explanation: "((2 + 1) * 3) = 9"
       }
     ],
-    constraints: ["1 <= tokens.length <= 104", "tokens[i] is either an operator: '+', '-', '*', or '/', or an integer in the range [-200, 200]"],
+    constraints: ["1 <= tokens.length <= 10^4", "tokens[i] is either an operator: '+', '-', '*', or '/', or an integer in the range [-200, 200]"],
     hints: ["Use stack", "Push operands", "Pop and evaluate for operators"],
     approach: "Use stack. Push operands, when encountering operator, pop two operands, perform operation, and push result.",
     acceptanceRate: 70,
@@ -1375,7 +1375,7 @@ const problems = [
         explanation: "For each day, find how many days until warmer temperature."
       }
     ],
-    constraints: ["1 <= temperatures.length <= 105", "30 <= temperatures[i] <= 100"],
+    constraints: ["1 <= temperatures.length <= 10^5", "30 <= temperatures[i] <= 100"],
     hints: ["Use monotonic stack", "Keep track of indices", "Pop when warmer temperature found"],
     approach: "Use monotonic stack to keep track of indices. When finding warmer temperature, pop and calculate days difference.",
     acceptanceRate: 75,
@@ -1398,7 +1398,7 @@ const problems = [
         explanation: "The largest rectangle is shown in the red area, which has an area = 10 units."
       }
     ],
-    constraints: ["1 <= heights.length <= 105", "0 <= heights[i] <= 104"],
+    constraints: ["1 <= heights.length <= 10^5", "0 <= heights[i] <= 10^4"],
     hints: ["Use monotonic stack", "Calculate area when popping", "Consider width from stack"],
     approach: "Use monotonic stack. When popping, calculate area using current height and width from stack position.",
     acceptanceRate: 55,

@@ -44,12 +44,7 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      console.log('Saving profile data:', profileData);
-      
       const response = await apiService.updateProfile(profileData);
-      
-      console.log('Profile update response:', response);
-      
       onProfileUpdate(response.user);
       setIsEditing(false);
       toast({
@@ -82,6 +77,15 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
   };
 
   const handleProfilePictureUpload = async (file: File) => {
+    // Same limits as the server, checked first so the user gets a clear message right away
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      toast({ title: "Unsupported image", description: "Please choose a JPEG, PNG, WebP or GIF image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Please choose an image under 5 MB.", variant: "destructive" });
+      return;
+    }
     setIsUploading(true);
     try {
       const response = await apiService.uploadProfilePicture(file);
@@ -127,14 +131,14 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
     <div className="space-y-6">
       {/* Profile Header */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="text-2xl">Profile</CardTitle>
             <CardDescription>Manage your personal information and preferences</CardDescription>
           </div>
           <Button
             variant={isEditing ? "outline" : "default"}
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={() => (isEditing ? handleCancel() : setIsEditing(true))}
             disabled={isLoading}
           >
             {isEditing ? <X className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
@@ -143,7 +147,7 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Profile Picture & Basic Info */}
-          <div className="flex items-start space-x-6">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
                 <AvatarImage 
@@ -164,7 +168,7 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                      onClick={() => {
                        const input = document.createElement('input');
                        input.type = 'file';
-                       input.accept = 'image/*';
+                       input.accept = 'image/jpeg,image/png,image/webp,image/gif';
                        input.onchange = (e) => {
                          const target = e.target as HTMLInputElement;
                          const file = target.files?.[0];
@@ -198,7 +202,7 @@ export const ProfileSection = ({ userData, onProfileUpdate }: ProfileSectionProp
                )}
             </div>
             
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 w-full space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 {isEditing ? (

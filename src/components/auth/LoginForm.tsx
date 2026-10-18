@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Lock, User as UserIcon, BookOpen, Brain, AlertCircle, ArrowLeft, KeyRound, Sparkles, Rocket, Code2, Trophy, Zap } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
+import { Mail, Lock, User as UserIcon, BookOpen, Brain, AlertCircle, ArrowLeft, KeyRound, Sparkles, Rocket, Code2, Trophy, Zap, Eye, EyeOff } from "lucide-react";
 import { apiService, type User } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -120,60 +122,96 @@ const Mascot = ({ mood, isLoading }: { mood: string; isLoading: boolean }) => {
   );
 };
 
-// Floating particles on hero
-const FloatingShapes = () => (
-  <div className="floating-shapes">
-    {[...Array(15)].map((_, i) => (
-      <div key={i} className={`floating-shape shape-${i % 5}`} style={{
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        animationDelay: `${Math.random() * 8}s`,
-        animationDuration: `${8 + Math.random() * 12}s`,
-      }} />
-    ))}
-  </div>
-);
+// Floating particles on hero. Positions are picked once, so they don't jump on every keystroke.
+const FloatingShapes = memo(() => {
+  const shapes = useMemo(() => [...Array(15)].map(() => ({
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    animationDelay: `${Math.random() * 8}s`,
+    animationDuration: `${8 + Math.random() * 12}s`,
+  })), []);
+  return (
+    <div className="floating-shapes">
+      {shapes.map((style, i) => (
+        <div key={i} className={`floating-shape shape-${i % 5}`} style={style} />
+      ))}
+    </div>
+  );
+});
 
 // Confetti on success
-const Confetti = ({ active }: { active: boolean }) => {
+const Confetti = memo(({ active }: { active: boolean }) => {
+  const pieces = useMemo(() => [...Array(50)].map((_, i) => ({
+    left: `${Math.random() * 100}%`,
+    animationDelay: `${Math.random() * 0.5}s`,
+    backgroundColor: ['#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'][i % 6],
+  })), []);
   if (!active) return null;
   return (
     <div className="confetti-container">
-      {[...Array(50)].map((_, i) => (
-        <div key={i} className="confetti-piece" style={{
-          left: `${Math.random() * 100}%`,
-          animationDelay: `${Math.random() * 0.5}s`,
-          backgroundColor: ['#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'][i % 6],
-        }} />
-      ))}
+      {pieces.map((style, i) => <div key={i} className="confetti-piece" style={style} />)}
+    </div>
+  );
+});
+
+// Password input with a show/hide toggle
+const PasswordInput = ({ id, value, onChange, placeholder, autoComplete, disabled }: {
+  id: string; value: string; onChange: (value: string) => void;
+  placeholder: string; autoComplete: string; disabled: boolean;
+}) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative group">
+      <Lock className="input-icon" />
+      <Input id={id} type={visible ? "text" : "password"} placeholder={placeholder} className="auth-input pr-10"
+        value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} required disabled={disabled} />
+      <button type="button" className="password-toggle" onClick={() => setVisible(!visible)}
+        aria-label={visible ? "Hide password" : "Show password"} tabIndex={-1}>
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
     </div>
   );
 };
 
+// Six code boxes; pasting or autofilling the whole code fills every box
+const OtpBoxes = ({ value, onChange, onComplete, disabled }: {
+  value: string; onChange: (value: string) => void; onComplete: (code: string) => void; disabled: boolean;
+}) => (
+  <div className="flex justify-center">
+    <InputOTP maxLength={6} value={value} onChange={onChange} onComplete={onComplete}
+      pattern={REGEXP_ONLY_DIGITS} pasteTransformer={(text) => text.replace(/\D/g, "")}
+      inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={disabled}>
+      <InputOTPGroup>
+        {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+      </InputOTPGroup>
+    </InputOTP>
+  </div>
+);
+
 export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const { toast } = useToast();
+  const [tab, setTab] = useState<"login" | "signup">("login");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [mascotMood, setMascotMood] = useState("idle");
+  const isDone = mascotMood === "success";
 
   // Login state
   const [loginMode, setLoginMode] = useState<"password" | "otp">("password");
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginOtpStep, setLoginOtpStep] = useState<"email" | "otp">("email");
   const [loginOtpEmail, setLoginOtpEmail] = useState("");
-  const [loginOtp, setLoginOtp] = useState(["", "", "", "", "", ""]);
+  const [loginOtp, setLoginOtp] = useState("");
 
   // Signup state
   const [signupStep, setSignupStep] = useState<"form" | "otp">("form");
   const [signupData, setSignupData] = useState({
     name: "", email: "", password: "", confirmPassword: "",
   });
-  const [signupOtp, setSignupOtp] = useState(["", "", "", "", "", ""]);
+  const [signupOtp, setSignupOtp] = useState("");
 
   const [cooldown, setCooldown] = useState(0);
-  const signupOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const loginOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -189,57 +227,50 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     setTimeout(() => setShowConfetti(false), 3000);
   }, []);
 
-  // OTP handlers
-  const handleOtpChange = (i: number, v: string, otp: string[], set: React.Dispatch<React.SetStateAction<string[]>>, refs: React.MutableRefObject<(HTMLInputElement | null)[]>) => {
-    if (v && !/^\d$/.test(v)) return;
-    const n = [...otp]; n[i] = v; set(n);
-    if (v && i < 5) refs.current[i + 1]?.focus();
-  };
-  const handleOtpKeyDown = (i: number, e: React.KeyboardEvent, otp: string[], _: any, refs: React.MutableRefObject<(HTMLInputElement | null)[]>) => {
-    if (e.key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
-  };
-  const handleOtpPaste = (e: React.ClipboardEvent, set: React.Dispatch<React.SetStateAction<string[]>>, refs: React.MutableRefObject<(HTMLInputElement | null)[]>) => {
-    e.preventDefault();
-    const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (p.length === 6) { set(p.split("")); refs.current[5]?.focus(); }
+  // Typing again clears the last error
+  const clearError = () => { if (error) { setError(""); setMascotMood("typing"); } };
+
+  const finishLogin = (user: User, token: string, title: string, description: string) => {
+    apiService.setToken(token);
+    triggerSuccess();
+    toast({ title, description });
+    setTimeout(() => onLogin(user), 1500);
   };
 
   // Signup handlers
   const handleSendSignupOtp = async (e: React.FormEvent) => {
     e.preventDefault(); setError("");
-    if (signupData.password !== signupData.confirmPassword) { setError("Passwords do not match."); return; }
     if (signupData.password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (signupData.password !== signupData.confirmPassword) { setError("Passwords do not match."); return; }
     setIsLoading(true);
     try {
       await apiService.sendOtp({ email: signupData.email, purpose: "signup" });
-      setSignupStep("otp"); setCooldown(60); setMascotMood("otp");
-      toast({ title: "OTP Sent!", description: `Check your email ${signupData.email}` });
+      setSignupOtp(""); setSignupStep("otp"); setCooldown(60); setMascotMood("otp");
+      toast({ title: "Code sent!", description: `Check your inbox at ${signupData.email}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to send OTP"); }
     finally { setIsLoading(false); }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otp = signupOtp.join("");
-    if (otp.length !== 6) { setError("Please enter the 6-digit OTP."); return; }
+  const verifySignup = async (code: string) => {
+    if (code.length !== 6 || isLoading || isDone) return;
     setIsLoading(true); setError("");
     try {
       const response = await apiService.signup({
-        name: signupData.name, email: signupData.email, password: signupData.password, otp,
+        name: signupData.name, email: signupData.email, password: signupData.password, otp: code,
       });
-      apiService.setToken(response.token); triggerSuccess();
-      toast({ title: "Account created!", description: "Welcome to Prodify." });
-      setTimeout(() => onLogin(response.user), 1500);
-    } catch (err) { setError(err instanceof Error ? err.message : "Signup failed"); }
-    finally { setIsLoading(false); }
+      finishLogin(response.user, response.token, "Account created!", "Welcome to Prodify.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Signup failed");
+      setSignupOtp("");
+    } finally { setIsLoading(false); }
   };
 
   const handleResendSignupOtp = async () => {
     if (cooldown > 0) return; setIsLoading(true); setError("");
     try {
       await apiService.sendOtp({ email: signupData.email, purpose: "signup" });
-      setCooldown(60); setSignupOtp(["", "", "", "", "", ""]);
-      toast({ title: "OTP Resent!", description: `New code sent to ${signupData.email}` });
+      setCooldown(60); setSignupOtp("");
+      toast({ title: "New code sent!", description: `Check your inbox at ${signupData.email}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to resend OTP"); }
     finally { setIsLoading(false); }
   };
@@ -249,9 +280,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     e.preventDefault(); setIsLoading(true); setError("");
     try {
       const response = await apiService.signin(loginData);
-      apiService.setToken(response.token); triggerSuccess();
-      toast({ title: "Login successful!", description: "Welcome back to Prodify." });
-      setTimeout(() => onLogin(response.user), 1500);
+      finishLogin(response.user, response.token, "Login successful!", "Welcome back to Prodify.");
     } catch (err) { setError(err instanceof Error ? err.message : "Login failed"); }
     finally { setIsLoading(false); }
   };
@@ -260,66 +289,76 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
     e.preventDefault(); setIsLoading(true); setError("");
     try {
       await apiService.sendOtp({ email: loginOtpEmail, purpose: "signin" });
-      setLoginOtpStep("otp"); setCooldown(60); setMascotMood("otp");
-      toast({ title: "OTP Sent!", description: `Check your email ${loginOtpEmail}` });
+      setLoginOtp(""); setLoginOtpStep("otp"); setCooldown(60); setMascotMood("otp");
+      toast({ title: "Code sent!", description: `Check your inbox at ${loginOtpEmail}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to send OTP"); }
     finally { setIsLoading(false); }
   };
 
-  const handleOtpLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otp = loginOtp.join("");
-    if (otp.length !== 6) { setError("Please enter the 6-digit OTP."); return; }
+  const verifyLoginOtp = async (code: string) => {
+    if (code.length !== 6 || isLoading || isDone) return;
     setIsLoading(true); setError("");
     try {
-      const response = await apiService.signinWithOtp({ email: loginOtpEmail, otp });
-      apiService.setToken(response.token); triggerSuccess();
-      toast({ title: "Login successful!", description: "Welcome back to Prodify." });
-      setTimeout(() => onLogin(response.user), 1500);
-    } catch (err) { setError(err instanceof Error ? err.message : "Login failed"); }
-    finally { setIsLoading(false); }
+      const response = await apiService.signinWithOtp({ email: loginOtpEmail, otp: code });
+      finishLogin(response.user, response.token, "Login successful!", "Welcome back to Prodify.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+      setLoginOtp("");
+    } finally { setIsLoading(false); }
   };
 
   const handleResendLoginOtp = async () => {
     if (cooldown > 0) return; setIsLoading(true); setError("");
     try {
       await apiService.sendOtp({ email: loginOtpEmail, purpose: "signin" });
-      setCooldown(60); setLoginOtp(["", "", "", "", "", ""]);
-      toast({ title: "OTP Resent!", description: `New code sent to ${loginOtpEmail}` });
+      setCooldown(60); setLoginOtp("");
+      toast({ title: "New code sent!", description: `Check your inbox at ${loginOtpEmail}` });
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to resend OTP"); }
     finally { setIsLoading(false); }
   };
 
-  const handleTabChange = () => {
+  // Switch to "sign in with a code", carrying over the email already typed
+  const switchToOtpLogin = () => {
+    setLoginMode("otp"); setLoginOtpStep("email"); setError("");
+    if (!loginOtpEmail) setLoginOtpEmail(loginData.email);
+  };
+
+  const handleTabChange = (value: string) => {
+    setTab(value as "login" | "signup");
     setError(""); setSignupStep("form"); setLoginOtpStep("email");
-    setSignupOtp(["", "", "", "", "", ""]); setLoginOtp(["", "", "", "", "", ""]);
+    setSignupOtp(""); setLoginOtp("");
     setMascotMood("idle");
   };
 
-  const onFormFocus = () => { if (!["otp", "success"].includes(mascotMood)) setMascotMood("typing"); };
+  // "Account already exists" on sign-up: offer to log in with the same email
+  const goToLogin = () => {
+    setLoginData({ email: signupData.email, password: "" });
+    setLoginOtpEmail(signupData.email);
+    setLoginMode("password");
+    handleTabChange("login");
+  };
+
+  const onFormFocus = () => { if (!["otp", "success", "error"].includes(mascotMood)) setMascotMood("typing"); };
   const onFormBlur = () => { if (!["otp", "success", "error"].includes(mascotMood)) setMascotMood("idle"); };
 
-  const OtpInputBoxes = ({ otp, setOtp, refs, disabled }: {
-    otp: string[]; setOtp: React.Dispatch<React.SetStateAction<string[]>>;
-    refs: React.MutableRefObject<(HTMLInputElement | null)[]>; disabled: boolean;
-  }) => (
-    <div className="flex justify-center gap-3">
-      {otp.map((digit, i) => (
-        <input key={i} ref={(el) => { refs.current[i] = el; }}
-          type="text" inputMode="numeric" maxLength={1} value={digit}
-          onChange={(e) => handleOtpChange(i, e.target.value, otp, setOtp, refs)}
-          onKeyDown={(e) => handleOtpKeyDown(i, e, otp, setOtp, refs)}
-          onPaste={(e) => handleOtpPaste(e, setOtp, refs)}
-          className={`otp-input ${digit ? "otp-filled" : ""}`} disabled={disabled} />
-      ))}
-    </div>
-  );
-
-  const ErrorAlert = () => error ? (
-    <div className="error-alert animate-shake">
-      <AlertCircle className="h-4 w-4 shrink-0" />{error}
+  const errorAlert = error ? (
+    // key restarts the shake animation only when the message changes
+    <div key={error} className="error-alert animate-shake" role="alert">
+      <AlertCircle className="h-4 w-4 shrink-0" />
+      <span className="flex-1">{error}</span>
+      {tab === "signup" && /already exists/i.test(error) && (
+        <button type="button" className="font-semibold underline whitespace-nowrap" onClick={goToLogin}>Log in instead</button>
+      )}
     </div>
   ) : null;
+
+  const resendLine = (onResend: () => void) => (
+    <div className="text-center text-sm">
+      {cooldown > 0 ? <span className="text-muted-foreground">Didn't get it? Resend in <span className="font-mono font-bold text-primary">{cooldown}s</span></span>
+        : <button type="button" className="text-primary hover:underline font-medium" onClick={onResend} disabled={isLoading}>Resend code</button>}
+      <p className="text-xs text-muted-foreground mt-1">Check your spam folder too. You can paste the whole code.</p>
+    </div>
+  );
 
   return (
     <div className="login-page">
@@ -348,13 +387,13 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
             </div>
             <div className="hero-feature animate-slide-in" style={{ animationDelay: "0.6s" }}>
               <div className="feature-icon"><Zap className="h-5 w-5" /></div>
-              <div><div className="feature-title">AI Recommendations</div><div className="feature-desc">Personalized study plans just for you</div></div>
+              <div><div className="feature-title">Smart Recommendations</div><div className="feature-desc">Know what to practice next, based on your progress</div></div>
             </div>
           </div>
 
           <div className="stats-ticker">
-            <div className="stat-item"><Rocket className="h-4 w-4" /><span>1000+ Problems</span></div>
-            <div className="stat-item"><BookOpen className="h-4 w-4" /><span>20+ Topics</span></div>
+            <div className="stat-item"><Rocket className="h-4 w-4" /><span>50+ Problems</span></div>
+            <div className="stat-item"><BookOpen className="h-4 w-4" /><span>15 Topics</span></div>
             <div className="stat-item"><UserIcon className="h-4 w-4" /><span>Free Forever</span></div>
           </div>
         </div>
@@ -378,143 +417,137 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
           <Card className="auth-card">
             <CardHeader className="text-center pb-2">
               <CardTitle className="text-2xl font-bold">
-                {mascotMood === "success" ? "You're In!" : "Welcome Back"}
+                {isDone ? "You're In!" : tab === "signup" ? "Create your account" : "Welcome Back"}
               </CardTitle>
               <CardDescription>
-                {mascotMood === "success" ? "Redirecting to your dashboard..." : "Continue your journey to master DSA"}
+                {isDone ? "Redirecting to your dashboard..." : tab === "signup" ? "Start your journey to master DSA" : "Continue your journey to master DSA"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="login" className="w-full" onValueChange={handleTabChange}>
+              <Tabs value={tab} className="w-full" onValueChange={handleTabChange}>
                 <TabsList className="grid w-full grid-cols-2 mb-6 h-11">
-                  <TabsTrigger value="login" className="text-sm font-medium">Login</TabsTrigger>
-                  <TabsTrigger value="signup" className="text-sm font-medium">Sign Up</TabsTrigger>
+                  <TabsTrigger value="login" className="text-sm font-medium" disabled={isDone}>Login</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-sm font-medium" disabled={isDone}>Sign Up</TabsTrigger>
                 </TabsList>
 
                 {/* LOGIN TAB */}
                 <TabsContent value="login" className="animate-fade-in">
-                  <ErrorAlert />
+                  {errorAlert}
                   {loginMode === "password" ? (
                     <form onSubmit={handlePasswordLogin} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
                         <div className="relative group">
                           <Mail className="input-icon" />
-                          <Input id="email" type="email" placeholder="Enter your email" className="auth-input"
-                            value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} required disabled={isLoading} />
+                          <Input id="email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
+                            value={loginData.email} onChange={(e) => { clearError(); setLoginData({ ...loginData, email: e.target.value }); }} required disabled={isLoading || isDone} />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative group">
-                          <Lock className="input-icon" />
-                          <Input id="password" type="password" placeholder="Enter your password" className="auth-input"
-                            value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} required disabled={isLoading} />
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="password">Password</Label>
+                          <button type="button" className="text-xs text-primary hover:underline" onClick={switchToOtpLogin}>Forgot password?</button>
                         </div>
+                        <PasswordInput id="password" placeholder="Enter your password" autoComplete="current-password"
+                          value={loginData.password} onChange={(v) => { clearError(); setLoginData({ ...loginData, password: v }); }} disabled={isLoading || isDone} />
                       </div>
-                      <Button type="submit" className="auth-button" disabled={isLoading}>
+                      <Button type="submit" className="auth-button" disabled={isLoading || isDone}>
                         {isLoading ? <><span className="spinner" /> Logging in...</> : "Login to Dashboard"}
                       </Button>
-                      <button type="button" className="alt-auth-link" onClick={() => { setLoginMode("otp"); setError(""); }}>
-                        <KeyRound className="h-3.5 w-3.5" /> Login with OTP instead
+                      <button type="button" className="alt-auth-link" onClick={switchToOtpLogin}>
+                        <KeyRound className="h-3.5 w-3.5" /> Login with an email code instead
                       </button>
                     </form>
                   ) : loginOtpStep === "email" ? (
                     <form onSubmit={handleSendLoginOtp} className="space-y-4 animate-fade-in">
+                      <p className="text-sm text-muted-foreground text-center">We'll email you a 6-digit code. No password needed.</p>
                       <div className="space-y-2">
                         <Label htmlFor="otp-email">Email</Label>
                         <div className="relative group">
                           <Mail className="input-icon" />
-                          <Input id="otp-email" type="email" placeholder="Enter your email" className="auth-input"
-                            value={loginOtpEmail} onChange={(e) => setLoginOtpEmail(e.target.value)} required disabled={isLoading} />
+                          <Input id="otp-email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
+                            value={loginOtpEmail} onChange={(e) => { clearError(); setLoginOtpEmail(e.target.value); }} required disabled={isLoading} />
                         </div>
                       </div>
                       <Button type="submit" className="auth-button" disabled={isLoading}>
-                        {isLoading ? <><span className="spinner" /> Sending...</> : "Send OTP"}
+                        {isLoading ? <><span className="spinner" /> Sending...</> : "Send Code"}
                       </Button>
                       <button type="button" className="alt-auth-link" onClick={() => { setLoginMode("password"); setError(""); setLoginOtpStep("email"); }}>
                         <Lock className="h-3.5 w-3.5" /> Login with password instead
                       </button>
                     </form>
                   ) : (
-                    <form onSubmit={handleOtpLogin} className="space-y-5 animate-fade-in">
-                      <button type="button" className="back-link" onClick={() => { setLoginOtpStep("email"); setError(""); setLoginOtp(["","","","","",""]); }}>
-                        <ArrowLeft className="h-3.5 w-3.5" /> Back
+                    <form onSubmit={(e) => { e.preventDefault(); verifyLoginOtp(loginOtp); }} className="space-y-5 animate-fade-in">
+                      <button type="button" className="back-link" onClick={() => { setLoginOtpStep("email"); setError(""); setLoginOtp(""); }}>
+                        <ArrowLeft className="h-3.5 w-3.5" /> Change email
                       </button>
                       <div className="otp-header">
                         <div className="otp-icon-wrapper"><Mail className="h-6 w-6 text-primary" /></div>
                         <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
-                        <p className="font-semibold">{loginOtpEmail}</p>
+                        <p className="font-semibold break-all">{loginOtpEmail}</p>
                       </div>
-                      <OtpInputBoxes otp={loginOtp} setOtp={setLoginOtp} refs={loginOtpRefs} disabled={isLoading} />
-                      <Button type="submit" className="auth-button" disabled={isLoading}>
+                      <OtpBoxes value={loginOtp} onChange={(v) => { clearError(); setLoginOtp(v); }} onComplete={verifyLoginOtp} disabled={isLoading || isDone} />
+                      <Button type="submit" className="auth-button" disabled={isLoading || isDone || loginOtp.length !== 6}>
                         {isLoading ? <><span className="spinner" /> Verifying...</> : "Verify & Login"}
                       </Button>
-                      <div className="text-center text-sm">
-                        {cooldown > 0 ? <span className="text-muted-foreground">Resend in <span className="font-mono font-bold text-primary">{cooldown}s</span></span>
-                          : <button type="button" className="text-primary hover:underline font-medium" onClick={handleResendLoginOtp} disabled={isLoading}>Resend OTP</button>}
-                      </div>
+                      {resendLine(handleResendLoginOtp)}
                     </form>
                   )}
                 </TabsContent>
 
                 {/* SIGNUP TAB */}
                 <TabsContent value="signup" className="animate-fade-in">
-                  <ErrorAlert />
+                  {errorAlert}
                   {signupStep === "form" ? (
                     <form onSubmit={handleSendSignupOtp} className="space-y-3.5">
                       <div className="space-y-1.5">
                         <Label htmlFor="signup-name">Full Name</Label>
                         <div className="relative group"><UserIcon className="input-icon" />
-                          <Input id="signup-name" type="text" placeholder="Enter your full name" className="auth-input"
-                            value={signupData.name} onChange={(e) => setSignupData({ ...signupData, name: e.target.value })} required disabled={isLoading} />
+                          <Input id="signup-name" type="text" placeholder="Enter your full name" className="auth-input" autoComplete="name"
+                            value={signupData.name} onChange={(e) => { clearError(); setSignupData({ ...signupData, name: e.target.value }); }} required disabled={isLoading} />
                         </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="signup-email">Email</Label>
                         <div className="relative group"><Mail className="input-icon" />
-                          <Input id="signup-email" type="email" placeholder="Enter your email" className="auth-input"
-                            value={signupData.email} onChange={(e) => setSignupData({ ...signupData, email: e.target.value })} required disabled={isLoading} />
+                          <Input id="signup-email" type="email" placeholder="Enter your email" className="auth-input" autoComplete="email"
+                            value={signupData.email} onChange={(e) => { clearError(); setSignupData({ ...signupData, email: e.target.value }); }} required disabled={isLoading} />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label htmlFor="signup-password">Password</Label>
-                          <div className="relative group"><Lock className="input-icon" />
-                            <Input id="signup-password" type="password" placeholder="Min 8 chars" className="auth-input"
-                              value={signupData.password} onChange={(e) => setSignupData({ ...signupData, password: e.target.value })} required disabled={isLoading} />
-                          </div>
+                          <PasswordInput id="signup-password" placeholder="Min 8 chars" autoComplete="new-password"
+                            value={signupData.password} onChange={(v) => { clearError(); setSignupData({ ...signupData, password: v }); }} disabled={isLoading} />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="signup-confirm-password">Confirm</Label>
-                          <div className="relative group"><Lock className="input-icon" />
-                            <Input id="signup-confirm-password" type="password" placeholder="Re-enter" className="auth-input"
-                              value={signupData.confirmPassword} onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })} required disabled={isLoading} />
-                          </div>
+                          <PasswordInput id="signup-confirm-password" placeholder="Re-enter" autoComplete="new-password"
+                            value={signupData.confirmPassword} onChange={(v) => { clearError(); setSignupData({ ...signupData, confirmPassword: v }); }} disabled={isLoading} />
                         </div>
                       </div>
+                      {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
+                        <p className="text-xs text-destructive">Passwords don't match yet.</p>
+                      )}
                       <Button type="submit" className="auth-button" disabled={isLoading}>
-                        {isLoading ? <><span className="spinner" /> Sending OTP...</> : <><Sparkles className="h-4 w-4" /> Send OTP & Verify Email</>}
+                        {isLoading ? <><span className="spinner" /> Sending code...</> : <><Sparkles className="h-4 w-4" /> Send Code & Verify Email</>}
                       </Button>
                     </form>
                   ) : (
-                    <form onSubmit={handleSignup} className="space-y-5 animate-fade-in">
-                      <button type="button" className="back-link" onClick={() => { setSignupStep("form"); setError(""); setSignupOtp(["","","","","",""]); setMascotMood("typing"); }}>
-                        <ArrowLeft className="h-3.5 w-3.5" /> Back
+                    <form onSubmit={(e) => { e.preventDefault(); verifySignup(signupOtp); }} className="space-y-5 animate-fade-in">
+                      <button type="button" className="back-link" onClick={() => { setSignupStep("form"); setError(""); setSignupOtp(""); setMascotMood("typing"); }}>
+                        <ArrowLeft className="h-3.5 w-3.5" /> Edit details
                       </button>
                       <div className="otp-header">
                         <div className="otp-icon-wrapper animate-bounce-slow"><Mail className="h-6 w-6 text-primary" /></div>
                         <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
-                        <p className="font-semibold">{signupData.email}</p>
+                        <p className="font-semibold break-all">{signupData.email}</p>
                       </div>
-                      <OtpInputBoxes otp={signupOtp} setOtp={setSignupOtp} refs={signupOtpRefs} disabled={isLoading} />
-                      <Button type="submit" className="auth-button" disabled={isLoading}>
+                      <OtpBoxes value={signupOtp} onChange={(v) => { clearError(); setSignupOtp(v); }} onComplete={verifySignup} disabled={isLoading || isDone} />
+                      <Button type="submit" className="auth-button" disabled={isLoading || isDone || signupOtp.length !== 6}>
                         {isLoading ? <><span className="spinner" /> Creating Account...</> : <><Rocket className="h-4 w-4" /> Verify & Create Account</>}
                       </Button>
-                      <div className="text-center text-sm">
-                        {cooldown > 0 ? <span className="text-muted-foreground">Resend in <span className="font-mono font-bold text-primary">{cooldown}s</span></span>
-                          : <button type="button" className="text-primary hover:underline font-medium" onClick={handleResendSignupOtp} disabled={isLoading}>Resend OTP</button>}
-                      </div>
+                      {resendLine(handleResendSignupOtp)}
                     </form>
                   )}
                 </TabsContent>
@@ -584,13 +617,12 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
         .alt-auth-link:hover { text-decoration:underline; }
         .back-link { display:flex; align-items:center; gap:4px; font-size:13px; color:hsl(var(--muted-foreground)); background:none; border:none; cursor:pointer; transition:color .2s; }
         .back-link:hover { color:hsl(var(--foreground)); }
+        .password-toggle { position:absolute; right:10px; top:50%; transform:translateY(-50%); color:hsl(var(--muted-foreground)); background:none; border:none; cursor:pointer; padding:4px; border-radius:6px; }
+        .password-toggle:hover { color:hsl(var(--foreground)); }
 
         /* OTP */
         .otp-header { text-align:center; }
         .otp-icon-wrapper { width:56px; height:56px; border-radius:16px; background:hsl(var(--primary)/.1); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }
-        .otp-input { width:48px!important; height:56px!important; text-align:center; font-size:22px; font-weight:700; border:2px solid hsl(var(--border)); border-radius:12px; background:hsl(var(--background)); color:hsl(var(--foreground)); outline:none; transition:all .2s; caret-color:hsl(var(--primary)); }
-        .otp-input:focus { border-color:hsl(var(--primary)); box-shadow:0 0 0 3px hsl(var(--primary)/.15); transform:translateY(-2px); }
-        .otp-filled { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.05); }
 
         .error-alert { margin-bottom:16px; padding:12px; background:hsl(var(--destructive)/.08); border:1px solid hsl(var(--destructive)/.2); border-radius:10px; display:flex; align-items:center; gap:8px; color:hsl(var(--destructive)); font-size:13px; }
         .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:white; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }

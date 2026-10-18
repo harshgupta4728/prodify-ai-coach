@@ -8,9 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Plus, Edit, Trash2, CheckCircle, Clock, AlertCircle, CalendarDays, Target, BookOpen, Code, Bell, Mail, Play, Sparkles, LayoutGrid, List, CalendarRange, Timer, Link2, Tag, ListChecks, X, Square, CheckSquare, Zap } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn, safeExternalUrl } from "@/lib/utils";
 import { sendNotification } from "@/lib/notification-utils";
 import { apiService } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { describeDeadline, toLocalInputValue, fromLocalInputValue } from "@/lib/deadlines";
 import { FocusMode } from "./planner/FocusMode";
 import { KanbanView } from "./planner/KanbanView";
 import { CalendarView } from "./planner/CalendarView";
@@ -63,8 +69,11 @@ const PRIORITIES = [
 ];
 
 export const Planner = ({ userEmail }: PlannerProps) => {
+  const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
@@ -88,26 +97,42 @@ export const Planner = ({ userEmail }: PlannerProps) => {
   // Smart Suggest state
   const [showSmartSuggest, setShowSmartSuggest] = useState(false);
 
-  // Load tasks from API
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        setLoading(true);
-        const fetchedTasks = await apiService.getTasks();
-        setTasks(fetchedTasks);
-      } catch (error) {
-        console.error('Error loading tasks:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Every failed action tells the user why (e.g. the server's validation message)
+  const showError = (error: unknown, title: string) => {
+    toast({
+      title,
+      description: error instanceof Error ? error.message : "Please try again.",
+      variant: "destructive",
+    });
+  };
 
+  // Load tasks from API
+  const loadTasks = async () => {
+    try {
+      setLoading(true);
+      setLoadFailed(false);
+      const fetchedTasks = await apiService.getTasks();
+      setTasks(fetchedTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadTasks();
 
-    const savedSettings = localStorage.getItem('planner-notification-settings');
-    if (savedSettings) {
-      setNotificationSettings(JSON.parse(savedSettings));
+    try {
+      const savedSettings = localStorage.getItem('planner-notification-settings');
+      if (savedSettings) {
+        setNotificationSettings(JSON.parse(savedSettings));
+      }
+    } catch {
+      // Keep the default reminder settings
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save notification settings
@@ -172,8 +197,9 @@ export const Planner = ({ userEmail }: PlannerProps) => {
       const newTask = await apiService.createTask(taskData);
       setTasks(prev => [newTask, ...prev]);
       setIsAddDialogOpen(false);
+      toast({ title: "Task created", description: newTask.title });
     } catch (error) {
-      console.error('Error creating task:', error);
+      showError(error, "Couldn't create the task");
     }
   };
 
@@ -194,23 +220,44 @@ export const Planner = ({ userEmail }: PlannerProps) => {
       ));
       setEditingTask(null);
     } catch (error) {
-      console.error('Error updating task:', error);
+      showError(error, "Couldn't update the task");
     }
+  };
+
+  // Delete asks first (see the confirmation dialog below)
+  const requestDelete = (taskId: string) => {
+    setTaskToDelete(tasks.find(t => t._id === taskId) || null);
   };
 
   const deleteTask = async (taskId: string) => {
     try {
       await apiService.deleteTask(taskId);
       setTasks(prev => prev.filter(task => task._id !== taskId));
+      toast({ title: "Task deleted" });
     } catch (error) {
-      console.error('Error deleting task:', error);
+      showError(error, "Couldn't delete the task");
+    }
+  };
+
+  // Ticking the checkbox completes right away; "Mark Complete" opens the details dialog
+  const quickCompleteTask = async (taskId: string) => {
+    try {
+      await apiService.completeTask(taskId, {});
+      setTasks(prev => prev.map(task =>
+        task._id === taskId
+          ? { ...task, completed: true, status: 'done' as const, completedAt: new Date().toISOString() }
+          : task
+      ));
+      toast({ title: "Task completed 🎉" });
+    } catch (error) {
+      showError(error, "Couldn't complete the task");
     }
   };
 
   const toggleTaskCompletion = (taskId: string) => {
     const task = tasks.find(t => t._id === taskId);
     if (task && !task.completed) {
-      setShowCompletionDialog(taskId);
+      quickCompleteTask(taskId);
     } else {
       markTaskIncomplete(taskId);
     }
@@ -231,7 +278,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         } : task
       ));
     } catch (error) {
-      console.error('Error marking task incomplete:', error);
+      showError(error, "Couldn't reopen the task");
     }
   };
 
@@ -261,8 +308,9 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
       setShowCompletionDialog(null);
       setCompletionData({ timeSpent: '', difficulty: 'medium', notes: '' });
+      toast({ title: "Task completed 🎉" });
     } catch (error) {
-      console.error('Error completing task:', error);
+      showError(error, "Couldn't complete the task");
     }
   };
 
@@ -292,7 +340,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
         t._id === taskId ? updatedTask : t
       ));
     } catch (error) {
-      console.error('Error changing task status:', error);
+      showError(error, "Couldn't move the task");
     }
   };
 
@@ -321,13 +369,6 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     setFocusTask(null);
   };
 
-  const getDaysUntilDeadline = (deadline: string) => {
-    const today = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
   const getPriorityColor = (priority: string) => {
     const priorityObj = PRIORITIES.find(p => p.value === priority);
     return priorityObj?.color || 'bg-gray-100 text-gray-800';
@@ -353,10 +394,11 @@ export const Planner = ({ userEmail }: PlannerProps) => {
 
   const pendingTasks = tasks.filter(task => !task.completed);
   const completedTasks = tasks.filter(task => task.completed);
-  const urgentTasks = tasks.filter(task =>
-    !task.completed &&
-    (task.priority === 'urgent' || getDaysUntilDeadline(task.deadline) <= 3)
-  );
+  const urgentTasks = tasks.filter(task => {
+    if (task.completed) return false;
+    const due = describeDeadline(task.deadline);
+    return task.priority === 'urgent' || due.soon || due.overdue;
+  });
 
   // Analytics
   const totalTimeSpent = completedTasks.reduce((total, task) => total + (task.timeSpent || 0), 0);
@@ -379,6 +421,18 @@ export const Planner = ({ userEmail }: PlannerProps) => {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center space-y-3">
+          <p className="font-medium">Couldn't load your tasks</p>
+          <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
+          <Button onClick={loadTasks}>Try again</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Focus Mode Bar */}
@@ -395,25 +449,25 @@ export const Planner = ({ userEmail }: PlannerProps) => {
       {userEmail && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="relative">
+                <div className="relative shrink-0">
                   <Bell className="h-5 w-5 text-blue-600" />
                   {notificationSettings.enabled && (
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold text-blue-800">Email Notifications</p>
+                  <p className="font-semibold text-blue-800">Deadline Reminders</p>
                   <p className="text-sm text-blue-600">
-                    Automatic email reminders {notificationSettings.reminderTime} minutes before deadlines
+                    Email and browser reminders {notificationSettings.reminderTime >= 60 ? `${notificationSettings.reminderTime / 60} hour${notificationSettings.reminderTime === 60 ? '' : 's'}` : `${notificationSettings.reminderTime} minutes`} before a deadline, sent to {userEmail}
                   </p>
-                  <p className="text-xs text-blue-500">
-                    Notifications will be sent to: {userEmail}
+                  <p className="text-xs text-blue-600/80">
+                    Reminders go out while Prodify is open in one of your browser tabs.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -648,7 +702,21 @@ export const Planner = ({ userEmail }: PlannerProps) => {
             <Card>
               <CardContent className="p-8 text-center">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground">No tasks found. Create your first task to get started!</p>
+                {tasks.length === 0 ? (
+                  <>
+                    <p className="text-muted-foreground mb-4">No tasks yet. Plan your first study session!</p>
+                    <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                      <Plus className="h-4 w-4" /> Add your first task
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground mb-4">No tasks match your search or filters.</p>
+                    <Button variant="outline" onClick={() => { setFilter('all'); setCategoryFilter('all'); setSearchQuery(''); }}>
+                      Clear filters
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -657,11 +725,11 @@ export const Planner = ({ userEmail }: PlannerProps) => {
                 key={task._id}
                 task={task}
                 onEdit={() => setEditingTask(task)}
-                onDelete={() => deleteTask(task._id)}
+                onDelete={() => requestDelete(task._id)}
                 onToggleComplete={() => toggleTaskCompletion(task._id)}
+                onOpenCompletion={() => setShowCompletionDialog(task._id)}
                 onToggleSubtask={(index) => toggleSubtask(task._id, index)}
                 onFocus={() => startFocus(task)}
-                getDaysUntilDeadline={getDaysUntilDeadline}
                 getPriorityColor={getPriorityColor}
                 getCategoryIcon={getCategoryIcon}
               />
@@ -675,7 +743,7 @@ export const Planner = ({ userEmail }: PlannerProps) => {
           tasks={filteredTasks}
           onStatusChange={handleStatusChange}
           onEdit={(task) => setEditingTask(task)}
-          onDelete={deleteTask}
+          onDelete={requestDelete}
           onFocus={startFocus}
           onToggleComplete={toggleTaskCompletion}
         />
@@ -774,6 +842,27 @@ export const Planner = ({ userEmail }: PlannerProps) => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!taskToDelete} onOpenChange={(open) => { if (!open) setTaskToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{taskToDelete?.title}" will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (taskToDelete) deleteTask(taskToDelete._id); setTaskToDelete(null); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -798,16 +887,17 @@ const QUICK_TEMPLATES: Array<{
 // ============ TaskForm ============
 interface TaskFormProps {
   task?: Task;
-  onSubmit: (taskData: any) => void;
+  onSubmit: (taskData: any) => Promise<void> | void;
 }
 
 const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
     category: task?.category || 'study',
     priority: task?.priority || 'medium',
-    deadline: task?.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : '',
+    deadline: task?.deadline ? toLocalInputValue(task.deadline) : '',
     estimatedTime: task?.estimatedTime || 0,
     link: task?.link || '',
     tags: task?.tags || [] as string[],
@@ -830,7 +920,7 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       category: template.category,
       priority: template.priority,
       estimatedTime: template.estimatedTime,
-      deadline: formData.deadline || tomorrow.toISOString().slice(0, 16),
+      deadline: formData.deadline || toLocalInputValue(tomorrow),
     });
   };
 
@@ -858,20 +948,35 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
     setFormData({ ...formData, subtasks: formData.subtasks.filter((_, i) => i !== index) });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const data: any = {
-      title: formData.title,
+    if (isSubmitting) return;
+
+    // A tag or step that was typed but not added with Enter is still kept
+    const pendingTag = tagInput.trim();
+    const pendingSubtask = subtaskInput.trim();
+    const tags = pendingTag && !formData.tags.includes(pendingTag) ? [...formData.tags, pendingTag] : formData.tags;
+    const subtasks = pendingSubtask ? [...formData.subtasks, { text: pendingSubtask, done: false }] : formData.subtasks;
+
+    // Always sent, so clearing a link, tags or steps while editing really clears them
+    const data = {
+      title: formData.title.trim(),
       description: formData.description,
       category: formData.category,
       priority: formData.priority,
-      deadline: formData.deadline,
+      deadline: fromLocalInputValue(formData.deadline),
+      estimatedTime: formData.estimatedTime,
+      link: formData.link.trim(),
+      tags,
+      subtasks,
     };
-    if (formData.estimatedTime > 0) data.estimatedTime = formData.estimatedTime;
-    if (formData.link) data.link = formData.link;
-    if (formData.tags.length > 0) data.tags = formData.tags;
-    if (formData.subtasks.length > 0) data.subtasks = formData.subtasks;
-    onSubmit(data);
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(data);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -911,7 +1016,7 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       </div>
 
       {/* Category & Priority */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label className="text-xs">Category</Label>
           <div className="flex flex-wrap gap-2">
@@ -956,7 +1061,7 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       </div>
 
       {/* Deadline & Estimated Time */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="deadline" className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5" /> Deadline *
@@ -973,7 +1078,7 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
           <Label className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5" /> Est. Time (min)
           </Label>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {[15, 30, 45, 60, 90, 120].map(min => (
               <button
                 key={min}
@@ -1101,8 +1206,10 @@ const TaskForm = ({ task, onSubmit }: TaskFormProps) => {
       )}
 
       <DialogFooter className="pt-2">
-        <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground w-full gap-2">
-          {task ? (
+        <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground w-full gap-2">
+          {isSubmitting ? (
+            "Saving..."
+          ) : task ? (
             <><Edit className="h-4 w-4" /> Update Task</>
           ) : (
             <><Zap className="h-4 w-4" /> Create Task</>
@@ -1119,9 +1226,9 @@ interface TaskCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onToggleComplete: () => void;
+  onOpenCompletion: () => void;
   onToggleSubtask: (index: number) => void;
   onFocus: () => void;
-  getDaysUntilDeadline: (deadline: string) => number;
   getPriorityColor: (priority: string) => string;
   getCategoryIcon: (category: string) => any;
 }
@@ -1131,16 +1238,16 @@ const TaskCard = ({
   onEdit,
   onDelete,
   onToggleComplete,
+  onOpenCompletion,
   onToggleSubtask,
   onFocus,
-  getDaysUntilDeadline,
   getPriorityColor,
   getCategoryIcon
 }: TaskCardProps) => {
-  const daysUntilDeadline = getDaysUntilDeadline(task.deadline);
+  const due = describeDeadline(task.deadline);
   const CategoryIcon = getCategoryIcon(task.category);
-  const isOverdue = daysUntilDeadline < 0;
-  const isDueSoon = daysUntilDeadline <= 3 && daysUntilDeadline >= 0;
+  const isOverdue = due.overdue;
+  const isDueSoon = due.soon && !task.completed;
   const subtasksDone = task.subtasks?.filter(s => s.done).length || 0;
   const subtasksTotal = task.subtasks?.length || 0;
   const subtaskProgress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
@@ -1200,10 +1307,11 @@ const TaskCard = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={onToggleComplete}
+                      onClick={onOpenCompletion}
+                      title="Complete and log time spent, difficulty and notes"
                       className="h-6 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                     >
-                      Mark Complete
+                      Mark Complete…
                     </Button>
                   )}
                 </div>
@@ -1298,10 +1406,7 @@ const TaskCard = ({
                     isDueSoon && "text-primary font-medium"
                   )}>
                     <Clock className="h-3 w-3" />
-                    {isOverdue
-                      ? `${Math.abs(daysUntilDeadline)} days overdue`
-                      : `${daysUntilDeadline} days left`
-                    }
+                    {task.completed ? "Done" : due.text}
                   </div>
 
                   {resourceUrl && (

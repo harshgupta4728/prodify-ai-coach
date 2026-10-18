@@ -195,39 +195,7 @@ progressSchema.statics.forUser = function (userId) {
   );
 };
 
-// Update streak when progress is updated
-progressSchema.pre('save', function(next) {
-  const today = new Date();
-  const lastActivity = new Date(this.lastActivityDate);
-  
-  // Check if it's a new day
-  if (today.toDateString() !== lastActivity.toDateString()) {
-    const diffTime = Math.abs(today - lastActivity);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) {
-      // Consecutive day - streak continues
-      this.currentStreak += 1;
-    } else if (diffDays > 1) {
-      // Streak broken - reset to 1 for today
-      this.currentStreak = 1;
-    }
-    // If diffDays === 0, it's the same day, don't change streak
-    
-    this.lastActivityDate = today;
-    
-    // Update longest streak
-    if (this.currentStreak > this.longestStreak) {
-      this.longestStreak = this.currentStreak;
-    }
-  } else {
-    // Same day - if this is the first problem solved today, start streak at 1
-    if (this.currentStreak === 0) {
-      this.currentStreak = 1;
-    }
-  }
-  
-  next();
-});
+// Streaks are computed from the solve history in routes/progress.js (applyStreaks).
+// They used to be bumped here on every save, so merely opening the app raised them.
 
 module.exports = mongoose.model('Progress', progressSchema); 

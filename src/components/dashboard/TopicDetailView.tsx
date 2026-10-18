@@ -39,6 +39,7 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
   const [problems, setProblems] = useState<any[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Learn tab state
   const [expandedSubtopics, setExpandedSubtopics] = useState<Set<string>>(new Set());
@@ -67,6 +68,7 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
   const loadTopicData = async () => {
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [topicData, mcqData, iqData, progressData] = await Promise.all([
         apiService.getTopic(topicId),
         apiService.getMCQs(topicId),
@@ -94,6 +96,7 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
       setViewedIQCount(prog.interviewQuestionsViewed?.[topicId] || 0);
     } catch (error) {
       console.error('Error loading topic:', error);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -144,14 +147,16 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
       setSelectedAnswer(null);
       setShowExplanation(false);
     } else {
-      setQuizFinished(true);
-      apiService.saveQuizScore({ topicSlug: topicId, score: quizScore + (selectedAnswer === mcqs[currentQ]?.correctIndex ? 0 : 0), totalQuestions: mcqs.length }).catch(console.error);
+      finishQuiz();
     }
   };
 
   const finishQuiz = () => {
     setQuizFinished(true);
-    apiService.saveQuizScore({ topicSlug: topicId, score: quizScore, totalQuestions: mcqs.length }).catch(console.error);
+    // Show the new best score / attempts right away, without reloading the page
+    apiService.saveQuizScore({ topicSlug: topicId, score: quizScore, totalQuestions: mcqs.length })
+      .then((res) => setProgress((prev: any) => prev ? { ...prev, quizScores: { ...(prev.quizScores || {}), [topicId]: res.quizScore } } : prev))
+      .catch(console.error);
   };
 
   // ===== Interview Handlers =====
@@ -194,7 +199,10 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
         <Button variant="ghost" onClick={onBack} className="gap-2">
           <ArrowLeft className="h-4 w-4" /> Back to Topics
         </Button>
-        <p className="text-muted-foreground">Topic not found.</p>
+        <p className="text-muted-foreground">
+          {loadFailed ? "Couldn't load this topic. Check your connection and try again." : "Topic not found."}
+        </p>
+        {loadFailed && <Button onClick={loadTopicData}>Try again</Button>}
       </div>
     );
   }
@@ -211,7 +219,7 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
             <span className="text-3xl">{topic.icon}</span>
             <h1 className="text-2xl font-bold">{topic.name}</h1>
             <Badge variant="outline" className={cn("text-xs", DIFFICULTY_COLORS[topic.difficulty])}>
@@ -219,7 +227,7 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
             </Badge>
           </div>
           <p className="text-muted-foreground">{topic.description}</p>
-          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {topic.estimatedHours}h estimated</span>
             <span className="flex items-center gap-1"><FileText className="h-4 w-4" /> {subtopicCount} articles</span>
             <span className="flex items-center gap-1"><HelpCircle className="h-4 w-4" /> {mcqs.length} MCQs</span>
@@ -231,10 +239,10 @@ export const TopicDetailView = ({ topicId, onBack, onNavigateToSection }: TopicD
       {/* Tabs */}
       <Tabs defaultValue="learn" className="space-y-4">
         <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="learn" className="gap-1.5"><FileText className="h-4 w-4" /> Learn</TabsTrigger>
-          <TabsTrigger value="practice" className="gap-1.5"><Code className="h-4 w-4" /> Practice</TabsTrigger>
-          <TabsTrigger value="quiz" className="gap-1.5"><HelpCircle className="h-4 w-4" /> Quiz</TabsTrigger>
-          <TabsTrigger value="interview" className="gap-1.5"><MessageSquare className="h-4 w-4" /> Interview</TabsTrigger>
+          <TabsTrigger value="learn" className="gap-1.5 text-xs sm:text-sm"><FileText className="h-4 w-4 hidden sm:block" /> Learn</TabsTrigger>
+          <TabsTrigger value="practice" className="gap-1.5 text-xs sm:text-sm"><Code className="h-4 w-4 hidden sm:block" /> Practice</TabsTrigger>
+          <TabsTrigger value="quiz" className="gap-1.5 text-xs sm:text-sm"><HelpCircle className="h-4 w-4 hidden sm:block" /> Quiz</TabsTrigger>
+          <TabsTrigger value="interview" className="gap-1.5 text-xs sm:text-sm"><MessageSquare className="h-4 w-4 hidden sm:block" /> Interview</TabsTrigger>
         </TabsList>
 
         {/* ============ LEARN TAB ============ */}

@@ -41,13 +41,45 @@ const SUGGESTED_QUESTIONS = [
   "How can I improve my problem-solving speed?"
 ];
 
+// Greeting in the coach personality picked in Settings
+const GREETINGS: Record<string, (name: string) => string> = {
+  friendly: (name) => `Hi ${name}! 😊 I'm your Prodify study buddy. What would you like help with today?`,
+  strict: (name) => `${name}. Let's get to work. What are you stuck on?`,
+  motivational: (name) => `Let's GO, ${name}! 🔥 Ready to crush some DSA today? What do you need?`,
+  chill: (name) => `Hey ${name} 🧘 No rush. What would you like to explore today?`,
+};
+
+const savedPersonality = () => {
+  try {
+    return JSON.parse(localStorage.getItem("prodify-ai-personality") || '"friendly"');
+  } catch {
+    return "friendly";
+  }
+};
+
+// Typed questions are matched to the closest prepared answer by keyword
+const KEYWORD_ROUTES: Array<{ keywords: string[]; question: string }> = [
+  { keywords: ["interview", "faang", "company", "companies", "placement", "job"], question: SUGGESTED_QUESTIONS[1] },
+  { keywords: ["plan", "schedule", "roadmap", "routine", "month"], question: SUGGESTED_QUESTIONS[3] },
+  { keywords: ["weak", "improve", "mistake", "struggle", "bad at"], question: SUGGESTED_QUESTIONS[4] },
+  { keywords: ["speed", "fast", "slow", "quick", "time limit"], question: SUGGESTED_QUESTIONS[5] },
+  { keywords: ["topic", "next", "learn", "start", "begin", "focus"], question: SUGGESTED_QUESTIONS[2] },
+  { keywords: ["question", "problem", "solve", "practice", "week"], question: SUGGESTED_QUESTIONS[0] },
+];
+
+// Renders **bold** segments of a reply
+const renderFormatted = (text: string) =>
+  text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part
+  );
+
 export const Chatbot = ({ userData }: ChatbotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: `Hi ${userData?.name || 'there'}! I'm your Prodify AI Mentor. I'm here to help you with your DSA preparation journey. What would you like to know today?`,
+      content: (GREETINGS[savedPersonality()] || GREETINGS.friendly)(userData?.name?.split(' ')[0] || 'there'),
       sender: 'ai',
       timestamp: new Date()
     }
@@ -293,24 +325,29 @@ Would you like me to create a focused study plan for any of these weak areas?`,
 Would you like me to create a specific speed training schedule?`
     };
 
-    const defaultResponse = `I understand you're asking about "${userMessage}". Let me provide you with personalized guidance based on your DSA preparation journey.
+    const defaultResponse = `I don't have a good answer for that one yet. Right now I can help with:
 
-For the best experience, I recommend:
-1. **Solving daily problems** on Prodify to get personalized recommendations
-2. **Setting specific goals** for your preparation
-3. **Tracking your progress** regularly
+1. **What to solve this week**
+2. **Interview preparation**
+3. **Which topics to learn next**
+4. **A study plan**
+5. **Weak areas** and **problem-solving speed**
 
-Would you like me to help you with any specific aspect of your DSA preparation?`;
+Tap a suggestion below, or ask about one of these!`;
 
-    return responses[userMessage as keyof typeof responses] || defaultResponse;
+    const exact = responses[userMessage as keyof typeof responses];
+    if (exact) return exact;
+    const lower = userMessage.toLowerCase();
+    const route = KEYWORD_ROUTES.find((r) => r.keywords.some((k) => lower.includes(k)));
+    return route ? responses[route.question as keyof typeof responses] : defaultResponse;
   };
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  const handleSendMessage = async (text: string = inputValue) => {
+    if (!text.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue,
+      content: text,
       sender: 'user',
       timestamp: new Date()
     };
@@ -320,7 +357,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
     setIsLoading(true);
 
     try {
-      const aiResponse = await generateAIResponse(inputValue);
+      const aiResponse = await generateAIResponse(text);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: aiResponse,
@@ -335,11 +372,9 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
     }
   };
 
+  // A suggestion is sent right away, like tapping a quick reply
   const handleSuggestedQuestion = (question: string) => {
-    setInputValue(question);
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    handleSendMessage(question);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -363,9 +398,9 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
       <Card className={cn(
-        "w-96 h-[600px] shadow-2xl border-0 bg-white",
+        "w-[calc(100vw-2rem)] sm:w-96 h-[min(600px,calc(100dvh-2rem))] flex flex-col shadow-2xl border bg-card",
         isMinimized && "h-16"
       )}>
         <CardHeader className={cn(
@@ -379,7 +414,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
               </div>
               <div>
                 <CardTitle className="text-lg">Prodify AI Mentor</CardTitle>
-                <p className="text-xs text-white/80">Your DSA Study Companion</p>
+                <p className="text-xs text-white/80">Quick study guidance</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -404,7 +439,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="p-0 h-[calc(600px-80px)] flex flex-col">
+          <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
                 {messages.map((message) => (
@@ -425,13 +460,13 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                         "max-w-[80%] rounded-lg p-3",
                         message.sender === 'user'
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-gray-100 text-gray-900'
+                          : 'bg-muted text-foreground'
                       )}
                     >
-                      <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                      <div className="whitespace-pre-wrap text-sm">{renderFormatted(message.content)}</div>
                       <div className={cn(
                         "text-xs mt-1",
-                        message.sender === 'user' ? 'text-white/70' : 'text-gray-500'
+                        message.sender === 'user' ? 'text-white/70' : 'text-muted-foreground'
                       )}>
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
@@ -448,7 +483,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                     <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                       <Bot className="h-4 w-4 text-primary" />
                     </div>
-                    <div className="bg-gray-100 rounded-lg p-3">
+                    <div className="bg-muted rounded-lg p-3">
                       <div className="flex space-x-1">
                         <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"></div>
                         <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -461,9 +496,9 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-gray-200">
+            <div className="p-4 border-t">
               <div className="mb-3">
-                <p className="text-xs text-gray-500 mb-2">Suggested questions:</p>
+                <p className="text-xs text-muted-foreground mb-2">Suggested questions:</p>
                 <div className="flex flex-wrap gap-1">
                   {SUGGESTED_QUESTIONS.slice(0, 3).map((question, index) => (
                     <Badge
@@ -487,7 +522,7 @@ Would you like me to help you with any specific aspect of your DSA preparation?`
                   className="flex-1 text-sm"
                 />
                 <Button
-                  onClick={handleSendMessage}
+                  onClick={() => handleSendMessage()}
                   disabled={!inputValue.trim() || isLoading}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   size="sm"

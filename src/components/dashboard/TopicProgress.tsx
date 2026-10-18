@@ -28,6 +28,8 @@ interface TopicWithCounts {
   mcqCount: number;
   interviewQuestionCount: number;
   order: number;
+  // Problem-bank topic names whose solved problems count as this topic's practice
+  practiceTopics?: string[];
 }
 
 const DIFFICULTY_COLORS = {
@@ -60,6 +62,7 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
   const [topics, setTopics] = useState<TopicWithCounts[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
 
@@ -70,6 +73,7 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
   const loadData = async () => {
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [topicsData, progressData] = await Promise.all([
         apiService.getTopics(),
         apiService.getProgress()
@@ -78,19 +82,23 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
       setProgress(progressData.progress || progressData);
     } catch (error) {
       console.error('Error loading topic data:', error);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
   };
 
   const getTopicProgress = (topic: TopicWithCounts) => {
-    if (!progress) return { theory: 0, practice: 0, quiz: 0, interview: 0, overall: 0 };
+    if (!progress) return { theory: 0, practice: 0, quiz: 0, interview: 0, overall: 0, hasPractice: false };
 
     const subtopicCount = topic.subtopics?.length || 1;
     const articlesRead = progress.articlesRead?.filter((a: any) => a.topicSlug === topic.slug).length || 0;
     const theory = Math.min((articlesRead / subtopicCount) * 100, 100);
 
-    const problemsSolved = progress.topicProgress?.[topic.slug] || 0;
+    // Solved problems are counted under the problem bank's names (e.g. "linkedLists")
+    const practiceTopics = topic.practiceTopics ?? [topic.slug];
+    const hasPractice = practiceTopics.length > 0;
+    const problemsSolved = practiceTopics.reduce((sum, key) => sum + (progress.topicProgress?.[key] || 0), 0);
     const practice = Math.min(problemsSolved * 20, 100);
 
     const quizData = progress.quizScores?.[topic.slug];
@@ -101,8 +109,10 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
       ? Math.min((interviewViewed / topic.interviewQuestionCount) * 100, 100)
       : 0;
 
-    const overall = (theory + practice + quiz + interview) / 4;
-    return { theory, practice, quiz, interview, overall };
+    // Topics without practice problems yet are scored on the other three parts
+    const parts = hasPractice ? [theory, practice, quiz, interview] : [theory, quiz, interview];
+    const overall = parts.reduce((sum, value) => sum + value, 0) / parts.length;
+    return { theory, practice, quiz, interview, overall, hasPractice };
   };
 
   const filteredTopics = topics.filter(topic => {
@@ -136,6 +146,18 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
           <p className="mt-3 text-muted-foreground">Loading topics...</p>
         </div>
       </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center space-y-3">
+          <p className="font-medium">Couldn't load topics</p>
+          <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
+          <Button onClick={loadData}>Try again</Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -288,7 +310,7 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
                       </div>
                       <div className="flex-1 space-y-1.5">
                         <ProgressMini label="Theory" value={prog.theory} icon={<FileText className="h-3 w-3" />} />
-                        <ProgressMini label="Practice" value={prog.practice} icon={<Code className="h-3 w-3" />} />
+                        {prog.hasPractice && <ProgressMini label="Practice" value={prog.practice} icon={<Code className="h-3 w-3" />} />}
                         <ProgressMini label="Quiz" value={prog.quiz} icon={<HelpCircle className="h-3 w-3" />} />
                         <ProgressMini label="Interview" value={prog.interview} icon={<MessageSquare className="h-3 w-3" />} />
                       </div>
@@ -317,7 +339,7 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
 };
 
 const ProgressMini = ({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex items-center gap-2" title={`${label}: ${Math.round(value)}%`} aria-label={`${label}: ${Math.round(value)}%`}>
     <div className="text-muted-foreground/60">{icon}</div>
     <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
       <div

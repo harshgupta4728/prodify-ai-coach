@@ -23,21 +23,25 @@ interface PomodoroSettings {
   breakMin: number;
   longBreakMin: number;
   sessionsBeforeLong: number;
+  // When off, the timer waits after a break instead of starting the next work session
+  autoStart: boolean;
 }
 
+// Saved by Settings > Focus Timer ("prodify-pomodoro" is the old key)
 const loadPomodoroSettings = (): PomodoroSettings => {
   try {
-    const saved = localStorage.getItem("prodify-pomodoro");
-    if (saved) return JSON.parse(saved);
+    const saved = localStorage.getItem("prodify-pomodoro-settings") || localStorage.getItem("prodify-pomodoro");
+    if (saved) return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4, autoStart: false, ...JSON.parse(saved) };
   } catch {
     // Fall back to defaults if saved settings are unreadable
   }
-  return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4 };
+  return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4, autoStart: false };
 };
 
+// Saved by Settings > Sound ("prodify-sounds" is the old key)
 const loadSoundEnabled = (): boolean => {
   try {
-    const saved = localStorage.getItem("prodify-sounds");
+    const saved = localStorage.getItem("prodify-sound-settings") || localStorage.getItem("prodify-sounds");
     if (saved) {
       const s = JSON.parse(saved);
       return s.master !== false;
@@ -97,6 +101,7 @@ export const FocusMode = ({ task, onStop, onComplete, onClose }: FocusModeProps)
             // Break ended → start new work session
             setIsBreak(false);
             setSessionCount(s => s + 1);
+            if (!settings.current.autoStart) setIsPaused(true);
             return settings.current.workMin * 60;
           }
         }

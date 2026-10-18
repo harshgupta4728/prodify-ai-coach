@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { apiService } from "@/lib/api";
+import { applyAccentColor } from "@/lib/theme";
+import { SUPPORTED_LANGUAGES } from "@/lib/starterCode";
 
 interface SettingsSectionProps {
   userData: {
@@ -62,16 +64,8 @@ const AI_PERSONALITIES = [
   { id: "chill", label: "Chill Sensei", icon: Coffee, desc: "Relaxed, zen-like, wisdom with calm vibes", emoji: "🧘" },
 ];
 
-const LANGUAGES = [
-  { value: "python", label: "Python" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "java", label: "Java" },
-  { value: "cpp", label: "C++" },
-  { value: "csharp", label: "C#" },
-  { value: "go", label: "Go" },
-  { value: "rust", label: "Rust" },
-  { value: "typescript", label: "TypeScript" },
-];
+// Same languages the code runner supports
+const LANGUAGES = SUPPORTED_LANGUAGES;
 
 function loadSetting<T>(key: string, fallback: T): T {
   try {
@@ -84,31 +78,6 @@ function saveSetting(key: string, value: any) {
   localStorage.setItem(`prodify-${key}`, JSON.stringify(value));
 }
 
-// Apply accent color to ALL related CSS variables
-function applyAccentColor(hsl: string) {
-  const root = document.documentElement;
-  // Parse "H S% L%" format
-  const parts = hsl.match(/([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
-  if (!parts) return;
-  const h = parts[1], s = parts[2], l = parts[3];
-
-  // Light mode variables
-  root.style.setProperty("--primary", hsl);
-  root.style.setProperty("--ring", hsl);
-  root.style.setProperty("--secondary", `${h} 100% 97%`);
-  root.style.setProperty("--secondary-foreground", hsl);
-  root.style.setProperty("--accent", `${h} 100% 95%`);
-  root.style.setProperty("--accent-foreground", hsl);
-
-  // Gradients & shadows
-  root.style.setProperty("--gradient-primary", `linear-gradient(135deg, hsl(${hsl}), hsl(${h} ${s}% 63%))`);
-  root.style.setProperty("--gradient-secondary", `linear-gradient(135deg, hsl(${h} 100% 97%), hsl(20 14% 96%))`);
-  root.style.setProperty("--gradient-accent", `linear-gradient(135deg, hsl(${hsl}), hsl(45 93% 47%))`);
-  root.style.setProperty("--shadow-soft", `0 4px 20px hsl(${hsl} / 0.1)`);
-  root.style.setProperty("--shadow-medium", `0 8px 30px hsl(${hsl} / 0.15)`);
-  root.style.setProperty("--shadow-strong", `0 12px 40px hsl(${hsl} / 0.2)`);
-}
-
 export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: SettingsSectionProps) => {
   // --- State ---
   const [notifications, setNotifications] = useState(() => loadSetting("notification-settings", { email: true, browserNotifications: true }));
@@ -118,7 +87,6 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
   const [sounds, setSounds] = useState(() => loadSetting("sound-settings", { master: true, achievements: true, streak: true, notifications: true, keypress: false }));
   const [preferredLang, setPreferredLang] = useState(() => loadSetting("preferred-language", "python"));
   const [dailyGoal, setDailyGoal] = useState(() => loadSetting("daily-goal", { daily: 3, weekly: 15 }));
-  const [streakShield, setStreakShield] = useState(() => loadSetting("streak-shield", { enabled: true, shieldsRemaining: 2, maxShields: 3 }));
   const [editorPrefs, setEditorPrefs] = useState(() => loadSetting("editor-prefs", { fontSize: 14, tabSize: 2, lineNumbers: true, wordWrap: true, minimap: false }));
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -182,13 +150,6 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
     }
   };
 
-  const handleStreakShieldToggle = () => {
-    const next = { ...streakShield, enabled: !streakShield.enabled };
-    setStreakShield(next);
-    saveSetting("streak-shield", next);
-    toast({ title: streakShield.enabled ? "Streak Shield Disabled" : "Streak Shield Enabled", description: streakShield.enabled ? "Your streak won't be protected on off days." : `You have ${streakShield.shieldsRemaining} shield(s) remaining.` });
-  };
-
   const handleEditorPrefChange = (key: string, value: any) => {
     const next = { ...editorPrefs, [key]: value };
     setEditorPrefs(next);
@@ -224,7 +185,7 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
         user: { name: userData.name, email: userData.email, university: userData.university, major: userData.major, graduationYear: userData.graduationYear, location: userData.location, portfolio: userData.portfolio },
         progress: progressData,
         tasks: tasksData,
-        settings: { accentColor, aiPersonality, pomodoro, sounds, preferredLang, dailyGoal, streakShield, editorPrefs, notifications },
+        settings: { accentColor, aiPersonality, pomodoro, sounds, preferredLang, dailyGoal, editorPrefs, notifications },
       };
 
       const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
@@ -248,6 +209,17 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
     } catch (error: any) {
       toast({ title: "Reset Failed", description: error.message || "Please try again.", variant: "destructive" });
     } finally { setIsResetting(false); }
+  };
+
+  // Revokes every login token for this account (other devices are signed out on their next request)
+  const handleLogoutAllDevices = async () => {
+    try {
+      await apiService.logoutAllDevices();
+      onLogout();
+      toast({ title: "Signed out everywhere", description: "Every device, including this one, now needs to log in again." });
+    } catch (error: any) {
+      toast({ title: "Couldn't sign out other devices", description: error.message || "Please try again.", variant: "destructive" });
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -438,36 +410,20 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {sounds.master ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-              Sound & Effects
+              Sound
             </CardTitle>
-            <CardDescription>Control audio feedback for gamification events</CardDescription>
+            <CardDescription>Audio feedback while you study</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-3">
                 {sounds.master ? <Volume2 className="h-5 w-5 text-primary" /> : <VolumeX className="h-5 w-5 text-muted-foreground" />}
                 <div>
-                  <p className="text-sm font-semibold">Master Sound</p>
-                  <p className="text-xs text-muted-foreground">Toggle all sounds on/off</p>
+                  <p className="text-sm font-semibold">Focus Timer Sounds</p>
+                  <p className="text-xs text-muted-foreground">Play a chime when a focus session or break ends</p>
                 </div>
               </div>
               <Switch checked={sounds.master} onCheckedChange={() => handleSoundChange("master")} />
-            </div>
-            <div className={`space-y-3 transition-opacity ${!sounds.master ? "opacity-40 pointer-events-none" : ""}`}>
-              {[
-                { key: "achievements", label: "Achievement Unlocked", desc: "Sound when you earn a badge or complete a milestone" },
-                { key: "streak", label: "Streak Celebrations", desc: "Sound for maintaining or hitting streak goals" },
-                { key: "notifications", label: "Notification Sound", desc: "Sound for task reminders and alerts" },
-                { key: "keypress", label: "Typing Feedback", desc: "Subtle click sound while coding (experimental)" },
-              ].map(({ key, label, desc }) => (
-                <div key={key} className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground">{desc}</p>
-                  </div>
-                  <Switch checked={sounds[key as keyof typeof sounds] as boolean} onCheckedChange={() => handleSoundChange(key)} />
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
@@ -536,37 +492,19 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
           </CardContent>
         </Card>
 
-        {/* ═══════════════ 8. STREAK SHIELD ═══════════════ */}
-        <Card>
+        {/* ═══════════════ 8. STREAK SHIELD (not built yet) ═══════════════ */}
+        <Card className="opacity-80">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Streak Shield</CardTitle>
-            <CardDescription>Protect your streak on days you can't practice — like Duolingo freeze!</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" /> Streak Shield
+              <Badge variant="secondary" className="text-[10px]">Coming soon</Badge>
+            </CardTitle>
+            <CardDescription>Protect your streak on days you can't practice, like a Duolingo streak freeze.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${streakShield.enabled ? "bg-primary/10" : "bg-muted"}`}>
-                  <Shield className={`h-6 w-6 ${streakShield.enabled ? "text-primary" : "text-muted-foreground"}`} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">Streak Protection</p>
-                  <p className="text-xs text-muted-foreground">Auto-use a shield when you miss a day</p>
-                </div>
-              </div>
-              <Switch checked={streakShield.enabled} onCheckedChange={handleStreakShieldToggle} />
-            </div>
-            <div className="p-4 border rounded-xl bg-muted/30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Shields Available</span>
-                <span className="text-sm font-bold">{streakShield.shieldsRemaining} / {streakShield.maxShields}</span>
-              </div>
-              <div className="flex gap-2">
-                {Array.from({ length: streakShield.maxShields }).map((_, i) => (
-                  <div key={i} className={`h-3 flex-1 rounded-full transition-colors ${i < streakShield.shieldsRemaining ? "bg-primary" : "bg-muted-foreground/20"}`} />
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-3">Shields recharge weekly. Complete 7 consecutive days to earn a bonus shield!</p>
-            </div>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Not available yet. For now, your streak stays alive until a whole day passes without a solved problem.
+            </p>
           </CardContent>
         </Card>
 
@@ -718,9 +656,15 @@ export const SettingsSection = ({ userData, onLogout, onNavigateToSection }: Set
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={onLogout}>
-              <LogOut className="h-4 w-4" /> Sign Out of All Devices
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="gap-2" onClick={onLogout}>
+                <LogOut className="h-4 w-4" /> Sign out
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={handleLogoutAllDevices}
+                title="Use this if you logged in on a shared or lost device">
+                <LogOut className="h-4 w-4" /> Sign out of all devices
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

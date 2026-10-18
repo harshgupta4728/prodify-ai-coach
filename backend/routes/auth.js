@@ -76,9 +76,9 @@ const removeUploadedFile = (storedPath) => {
   fs.promises.unlink(path.join(uploadDir, path.basename(storedPath))).catch(() => {});
 };
 
-// Generate JWT Token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, config.jwtSecret, { algorithm: 'HS256', expiresIn: '7d' });
+// Generate JWT Token. tv (token version) lets "sign out of all devices" revoke every token.
+const generateToken = (user) => {
+  return jwt.sign({ userId: user._id, tv: user.tokenVersion || 0 }, config.jwtSecret, { algorithm: 'HS256', expiresIn: '7d' });
 };
 
 // User data sent to the client, plus whether this account may manage content
@@ -215,7 +215,7 @@ router.post('/signin-otp', loginPerEmail, async (req, res) => {
     res.json({
       message: 'Login successful',
       user: toPublicUser(user),
-      token: generateToken(user._id)
+      token: generateToken(user)
     });
   } catch (error) {
     console.error('Signin OTP error:', error.message);
@@ -276,7 +276,7 @@ router.post('/signup', loginPerEmail, async (req, res) => {
     res.status(201).json({
       message: 'User created successfully',
       user: toPublicUser(user),
-      token: generateToken(user._id)
+      token: generateToken(user)
     });
 
   } catch (error) {
@@ -327,7 +327,7 @@ router.post('/signin', loginPerEmail, async (req, res) => {
     res.json({
       message: 'Login successful',
       user: toPublicUser(user),
-      token: generateToken(user._id)
+      token: generateToken(user)
     });
 
   } catch (error) {
@@ -341,6 +341,17 @@ router.get('/me', auth, async (req, res) => {
   res.json({
     user: toPublicUser(req.user)
   });
+});
+
+// Sign out everywhere: every token issued so far stops working
+router.post('/logout-all', auth, async (req, res) => {
+  try {
+    await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+    res.json({ message: 'Signed out of all devices.' });
+  } catch (error) {
+    console.error('Logout all error:', error.message);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
 });
 
 // Editable profile fields and their maximum lengths
