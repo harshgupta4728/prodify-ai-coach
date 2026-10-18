@@ -5,6 +5,7 @@ const InterviewQuestion = require('../models/InterviewQuestion');
 const auth = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/auth');
 const { pick } = require('../lib/validate');
+const { practiceTopicsFor } = require('../lib/topicMap');
 
 const router = express.Router();
 
@@ -40,7 +41,9 @@ router.get('/', auth, async (req, res) => {
         data: topics.map((topic) => ({
           ...topic,
           mcqCount: mcqCounts.get(topic.slug) || 0,
-          interviewQuestionCount: iqCounts.get(topic.slug) || 0
+          interviewQuestionCount: iqCounts.get(topic.slug) || 0,
+          // Problem-bank topics counted as this topic's "practice"
+          practiceTopics: practiceTopicsFor(topic.slug)
         })),
         expiresAt: Date.now() + TOPICS_CACHE_MS
       };
@@ -65,7 +68,8 @@ router.get('/:slug', auth, async (req, res) => {
     res.json({
       ...topic.toObject(),
       mcqCount,
-      interviewQuestionCount: iqCount
+      interviewQuestionCount: iqCount,
+      practiceTopics: practiceTopicsFor(topic.slug)
     });
   } catch (error) {
     console.error('Get topic error:', error);

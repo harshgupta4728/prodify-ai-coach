@@ -75,6 +75,8 @@ class ApiService {
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      // The server uses it so "today", streaks and the daily problem follow the user's own midnight
+      'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
       ...options.headers,
     };
 
@@ -138,6 +140,11 @@ class ApiService {
 
   async getCurrentUser(): Promise<{ user: User }> {
     return this.request<{ user: User }>('/auth/me');
+  }
+
+  // Invalidates every login token for this account, on every device
+  async logoutAllDevices(): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/logout-all', { method: 'POST' });
   }
 
   async updateProfile(data: Partial<User>): Promise<{ message: string; user: User }> {

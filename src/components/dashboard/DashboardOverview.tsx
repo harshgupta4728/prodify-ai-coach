@@ -1,51 +1,46 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  TrendingUp, 
-  Target,
-  Clock, 
-  CheckCircle2, 
-  Calendar,
-  Lightbulb,
-  ArrowRight,
-  Code,
-  Trophy,
-  Plus,
-  RotateCcw,
-  AlertTriangle,
-  ExternalLink
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { apiService } from "@/lib/api";
-import aiAssistant from "@/assets/ai-assistant.jpg";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  ArrowRight,
+  BookOpen,
+  CalendarCheck,
+  CheckCircle2,
+  Code2,
+  Flame,
+  Gauge,
+  RotateCcw,
+  Target,
+  Trophy,
+  type LucideIcon,
+} from "lucide-react";
+import { apiService } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { StatTile } from "@/components/common/StatTile";
+import { DifficultyBadge } from "@/components/common/DifficultyBadge";
+import { ActivityHeatmap } from "@/components/common/ActivityHeatmap";
 
 interface DashboardOverviewProps {
   userName: string;
   onNavigateToSection?: (section: string) => void;
 }
 
+const RECOMMENDATION_ICONS: Record<string, LucideIcon> = {
+  streak: Flame,
+  goal: Target,
+  difficulty: Gauge,
+  topic: BookOpen,
+};
+
 export const DashboardOverview = ({ userName, onNavigateToSection }: DashboardOverviewProps) => {
-  const { toast } = useToast();
   const [progress, setProgress] = useState<any>(null);
+  const [activity, setActivity] = useState<Record<string, number>>({});
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [todaysProblem, setTodaysProblem] = useState<any>(null);
-
-
 
   useEffect(() => {
     loadDashboardData();
@@ -54,232 +49,221 @@ export const DashboardOverview = ({ userName, onNavigateToSection }: DashboardOv
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
+      setLoadFailed(false);
       const [progressData, recommendationsData, todaysProblemData] = await Promise.all([
         apiService.getProgress(),
-        apiService.getRecommendations(),
+        apiService.getRecommendations().catch(() => ({ recommendations: [] })),
         apiService.getTodaysProblem().catch(() => ({ todaysProblem: null }))
       ]);
-      
+
       setProgress(progressData.progress);
+      setActivity(progressData.activity || {});
       setRecommendations(recommendationsData.recommendations || []);
       setTodaysProblem(todaysProblemData.todaysProblem);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      toast({
-        title: "Error loading data",
-        description: "Failed to load your progress data. Please refresh the page.",
-        variant: "destructive",
-      });
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResetProgress = async () => {
-    try {
-      await apiService.resetProgress();
-      toast({
-        title: "Progress Reset",
-        description: "Your progress has been reset successfully. All solved problems and stats have been cleared.",
-      });
-      // Reload dashboard data
-      await loadDashboardData();
-    } catch (error) {
-      console.error('Error resetting progress:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reset progress. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAddProblem = () => {
-    if (onNavigateToSection) {
-      onNavigateToSection('topic-progress');
-    }
-  };
+  const go = (section: string) => onNavigateToSection?.(section);
 
   const handleRecommendationAction = (recommendation: any) => {
-    if (onNavigateToSection) {
-      if (recommendation.type === 'topic') {
-        onNavigateToSection('topic-progress');
-      } else if (recommendation.type === 'streak') {
-        onNavigateToSection('todays-problem');
-      } else {
-        onNavigateToSection('topic-progress');
-      }
-    }
+    go(recommendation.type === 'streak' ? 'todays-problem' : 'topic-progress');
   };
 
-  const handleSolveTodaysProblem = () => {
-    if (onNavigateToSection) {
-      onNavigateToSection('todays-problem');
-    }
-  };
+  const firstName = userName.split(' ')[0] || userName;
 
-  // Use real data or fallback to defaults
-  const currentStreak = progress?.todaysProblemStreak || 0;
+  if (isLoading) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <Skeleton className="h-12 w-72" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px]" />)}
+        </div>
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <Card className="p-8 text-center space-y-3">
+        <p className="font-medium">Couldn't load your dashboard</p>
+        <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
+        <Button onClick={loadDashboardData} variant="secondary" className="gap-2">
+          <RotateCcw className="h-4 w-4" /> Try again
+        </Button>
+      </Card>
+    );
+  }
+
+  const currentStreak = progress?.currentStreak || 0;
+  const longestStreak = Math.max(progress?.longestStreak || 0, currentStreak);
+  const dailyStreak = progress?.todaysProblemStreak || 0;
+  const longestDailyStreak = Math.max(progress?.longestTodaysProblemStreak || 0, dailyStreak);
   const problemsSolved = progress?.totalProblemsSolved || 0;
+  const solvedThisMonth = progress?.problemsSolvedThisMonth || 0;
+  const rating = progress?.currentRating || 1200;
+  const highestRating = Math.max(progress?.highestRating || 0, rating);
+  const solvedThisWeek = progress?.problemsSolvedThisWeek || 0;
+  const weeklyGoal = progress?.weeklyGoal || 15;
+  const solvedToday = Boolean(todaysProblem?.isSolved);
+  const days = (n: number) => (n === 1 ? "day" : "days");
+
+  const subtitle = solvedToday
+    ? "Today's problem is done. Keep the momentum going."
+    : problemsSolved === 0
+      ? "Start with today's problem: one problem a day builds a streak."
+      : currentStreak > 0
+        ? `You're on a ${currentStreak}-day streak. Solve something today to keep it going.`
+        : "Today's problem is waiting for you.";
+
+  const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-br from-secondary to-muted rounded-xl p-8 relative overflow-hidden">
-        <div className="relative z-10">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {userName}! 👋
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Start your learning journey today!
-          </p>
-          <div className="flex items-center gap-4 mt-4">
-            <Badge variant="secondary" className="gap-2">
-              <Trophy className="h-4 w-4" />
-              {currentStreak} Day Streak
-            </Badge>
-            <Badge variant="outline" className="gap-2">
-              <Code className="h-4 w-4" />
-              {problemsSolved} Problems Solved
-            </Badge>
+      <PageHeader title={`Welcome back, ${firstName}`} description={subtitle} />
 
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile
+          label="Streak"
+          value={currentStreak}
+          unit={days(currentStreak)}
+          hint={`Best: ${longestStreak} ${days(longestStreak)}`}
+          icon={Flame}
+          highlight={currentStreak > 0}
+          title="Days in a row with at least one solved problem"
+        />
+        <StatTile
+          label="Daily problem"
+          value={dailyStreak}
+          unit={days(dailyStreak)}
+          hint={`Best: ${longestDailyStreak} ${days(longestDailyStreak)}`}
+          icon={CalendarCheck}
+          title="Days in a row you solved the problem of the day"
+        />
+        <StatTile
+          label="Solved"
+          value={problemsSolved}
+          unit={problemsSolved === 1 ? "problem" : "problems"}
+          hint={`${solvedThisMonth} in the last 30 days`}
+          icon={CheckCircle2}
+        />
+        <StatTile
+          label="Rating"
+          value={rating}
+          hint={`Highest: ${highestRating}`}
+          icon={Trophy}
+        />
       </div>
 
-      {/* Today's Problem Card */}
-      <Card className="border-2 border-primary/20 hover:border-primary/40 transition-colors">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            Problem of the Day
-          </CardTitle>
-          <CardDescription>
-            Solve today's problem to maintain your streak!
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Problem of the day */}
+        <Card className="lg:col-span-2 p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="eyebrow">Problem of the day</p>
+            <span className="font-mono text-xs text-muted-foreground">{todayLabel}</span>
+          </div>
           {todaysProblem ? (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <h3 className="font-medium text-lg">{todaysProblem.title}</h3>
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={todaysProblem.difficulty === 'easy' ? 'default' : todaysProblem.difficulty === 'medium' ? 'secondary' : 'destructive'}
-                    >
-                      {todaysProblem.difficulty}
-                    </Badge>
-                    <Badge variant="outline">
-                      {todaysProblem.topics?.[0] || 'DSA'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Start your learning journey today!
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleSolveTodaysProblem}
-                    className="bg-gradient-primary hover:opacity-90"
-                  >
-                    <Code className="h-4 w-4 mr-2" />
-                    Solve Now
-                  </Button>
+            <>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold leading-snug">{todaysProblem.title}</h2>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <DifficultyBadge difficulty={todaysProblem.difficulty} />
+                  {(todaysProblem.topics || []).slice(0, 3).map((topic: string) => (
+                    <span key={topic} className="chip">{topic}</span>
+                  ))}
                 </div>
               </div>
-            </div>
+              <div className="mt-auto flex flex-wrap items-center gap-3">
+                <Button
+                  onClick={() => go('todays-problem')}
+                  variant={solvedToday ? "secondary" : "default"}
+                  className="gap-2"
+                >
+                  <Code2 className="h-4 w-4" />
+                  {solvedToday ? "Review solution" : "Solve now"}
+                </Button>
+                {solvedToday ? (
+                  <span className="flex items-center gap-1.5 text-sm text-success">
+                    <CheckCircle2 className="h-4 w-4" /> Solved today
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">A new problem every day at midnight</span>
+                )}
+              </div>
+            </>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Loading today's problem...</p>
-                <p className="text-xs text-muted-foreground">
-                  Start your learning journey today!
-                </p>
-              </div>
-              <Button 
-                onClick={handleSolveTodaysProblem}
-                className="bg-gradient-primary hover:opacity-90"
-                disabled
-              >
-                <Code className="h-4 w-4 mr-2" />
-                Loading...
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">No problem is available today. Practice a topic instead.</p>
+              <Button variant="secondary" onClick={() => go('topic-progress')} className="gap-2">
+                Browse topics <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-        {/* AI Recommendations */}
-        <Card className="border-primary/20 bg-gradient-to-br from-accent/5 to-primary/5 hover:shadow-soft transition-shadow">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                <Lightbulb className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Smart Recommendations</CardTitle>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recommendations.length > 0 ? (
-                recommendations.slice(0, 2).map((rec, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <img 
-                      src={aiAssistant} 
-                      alt="AI Assistant" 
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium mb-1">{rec.title}</p>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {rec.description}
-                      </p>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="gap-2"
-                        onClick={() => handleRecommendationAction(rec)}
-                      >
-                        {rec.action}
-                        <ArrowRight className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-start gap-3">
-                  <img 
-                    src={aiAssistant} 
-                    alt="AI Assistant" 
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium mb-1">Start Your Journey! 🚀</p>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Begin with basic array problems to build your foundation.
-                    </p>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="gap-2"
-                      onClick={handleAddProblem}
-                    >
-                      View Topics
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
+        {/* Weekly goal */}
+        <Card className="p-5 flex flex-col gap-3">
+          <p className="eyebrow">This week</p>
+          <p className="flex items-baseline gap-1.5">
+            <span className="font-mono text-2xl font-semibold tabular-nums">{solvedThisWeek}</span>
+            <span className="text-sm text-muted-foreground">/ {weeklyGoal} problems</span>
+          </p>
+          <Progress value={Math.min((solvedThisWeek / weeklyGoal) * 100, 100)} />
+          <p className="text-xs text-muted-foreground mt-auto">
+            {solvedThisWeek >= weeklyGoal
+              ? "Weekly goal reached. Nice work."
+              : `${weeklyGoal - solvedThisWeek} more to reach your goal. You can change it in Settings.`}
+          </p>
         </Card>
       </div>
 
+      {/* Activity calendar */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow">Activity</p>
+          <span className="text-xs text-muted-foreground">
+            Longest streak <span className="font-mono text-foreground">{longestStreak}</span> {days(longestStreak)}
+          </span>
+        </div>
+        <ActivityHeatmap activity={activity} />
+      </Card>
 
+      {/* Recommendations */}
+      <Card className="p-5">
+        <p className="eyebrow mb-1">Up next</p>
+        <ul className="divide-y">
+          {(recommendations.length > 0 ? recommendations.slice(0, 3) : [{
+            type: 'topic',
+            title: 'Start with the basics',
+            description: 'Begin with array problems to build your foundation.',
+            action: 'View topics',
+          }]).map((rec: any, index: number) => {
+            const Icon = RECOMMENDATION_ICONS[rec.type] || BookOpen;
+            return (
+              <li key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 py-4 last:pb-0">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{rec.title}</p>
+                    <p className="text-sm text-muted-foreground">{rec.description}</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="secondary" className="gap-1.5 self-start sm:self-auto" onClick={() => handleRecommendationAction(rec)}>
+                  {rec.action} <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
     </div>
   );
 };

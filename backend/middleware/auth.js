@@ -22,7 +22,8 @@ const auth = async (req, res, next) => {
   try {
     const user = await User.findById(decoded.userId).select('-password');
 
-    if (!user) {
+    // Tokens from before a "sign out of all devices" carry an older version
+    if (!user || (decoded.tv || 0) !== (user.tokenVersion || 0)) {
       return res.status(401).json({ error: 'Invalid token.' });
     }
 

@@ -1,15 +1,20 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  BookOpen, Trophy, Search, ChevronRight,
-  Clock, FileText, HelpCircle, MessageSquare, Code
+  ArrowDownWideNarrow, ArrowLeftRight, BookOpen, Brackets, CheckCircle2, ChevronRight, Coins,
+  GalleryHorizontal, Gauge, Grid3x3, Hash, HelpCircle, Layers, Link2, Network, RotateCcw, Search,
+  SearchCode, Share2, Triangle, Type, Undo2, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiService } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { StatTile } from "@/components/common/StatTile";
+import { EmptyState } from "@/components/common/EmptyState";
 
 interface TopicProgressProps {
   onNavigateToSection?: (section: string) => void;
@@ -28,38 +33,34 @@ interface TopicWithCounts {
   mcqCount: number;
   interviewQuestionCount: number;
   order: number;
+  // Problem-bank topic names whose solved problems count as this topic's practice
+  practiceTopics?: string[];
 }
 
-const DIFFICULTY_COLORS = {
-  beginner: 'bg-green-100 text-green-700 border-green-200',
-  intermediate: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  advanced: 'bg-red-100 text-red-700 border-red-200',
+// A topic's own icon is an emoji; the list shows a plain line icon for it instead
+const TOPIC_ICONS: Record<string, LucideIcon> = {
+  arrays: Brackets,
+  strings: Type,
+  'linked-lists': Link2,
+  'stack-queue': Layers,
+  trees: Network,
+  graphs: Share2,
+  'dynamic-programming': Grid3x3,
+  'binary-search': SearchCode,
+  greedy: Coins,
+  backtracking: Undo2,
+  'two-pointers': ArrowLeftRight,
+  'sliding-window': GalleryHorizontal,
+  heap: Triangle,
+  hashing: Hash,
+  sorting: ArrowDownWideNarrow,
 };
-
-const TOPIC_COLORS: Record<string, { bg: string; text: string; light: string }> = {
-  blue: { bg: 'bg-blue-500', text: 'text-blue-600', light: 'bg-blue-50' },
-  green: { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-50' },
-  purple: { bg: 'bg-purple-500', text: 'text-purple-600', light: 'bg-purple-50' },
-  violet: { bg: 'bg-violet-500', text: 'text-violet-600', light: 'bg-violet-50' },
-  amber: { bg: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
-  red: { bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-50' },
-  indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', light: 'bg-indigo-50' },
-  teal: { bg: 'bg-teal-500', text: 'text-teal-600', light: 'bg-teal-50' },
-  pink: { bg: 'bg-pink-500', text: 'text-pink-600', light: 'bg-pink-50' },
-  yellow: { bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-50' },
-  cyan: { bg: 'bg-cyan-500', text: 'text-cyan-600', light: 'bg-cyan-50' },
-  emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', light: 'bg-emerald-50' },
-  orange: { bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
-  rose: { bg: 'bg-rose-500', text: 'text-rose-600', light: 'bg-rose-50' },
-  slate: { bg: 'bg-slate-500', text: 'text-slate-600', light: 'bg-slate-50' },
-};
-
-const getColor = (color: string) => TOPIC_COLORS[color] || TOPIC_COLORS.blue;
 
 export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
   const [topics, setTopics] = useState<TopicWithCounts[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
 
@@ -70,6 +71,7 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
   const loadData = async () => {
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [topicsData, progressData] = await Promise.all([
         apiService.getTopics(),
         apiService.getProgress()
@@ -78,19 +80,23 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
       setProgress(progressData.progress || progressData);
     } catch (error) {
       console.error('Error loading topic data:', error);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
   };
 
   const getTopicProgress = (topic: TopicWithCounts) => {
-    if (!progress) return { theory: 0, practice: 0, quiz: 0, interview: 0, overall: 0 };
+    if (!progress) return { theory: 0, practice: 0, quiz: 0, interview: 0, overall: 0, hasPractice: false };
 
     const subtopicCount = topic.subtopics?.length || 1;
     const articlesRead = progress.articlesRead?.filter((a: any) => a.topicSlug === topic.slug).length || 0;
     const theory = Math.min((articlesRead / subtopicCount) * 100, 100);
 
-    const problemsSolved = progress.topicProgress?.[topic.slug] || 0;
+    // Solved problems are counted under the problem bank's names (e.g. "linkedLists")
+    const practiceTopics = topic.practiceTopics ?? [topic.slug];
+    const hasPractice = practiceTopics.length > 0;
+    const problemsSolved = practiceTopics.reduce((sum, key) => sum + (progress.topicProgress?.[key] || 0), 0);
     const practice = Math.min(problemsSolved * 20, 100);
 
     const quizData = progress.quizScores?.[topic.slug];
@@ -101,8 +107,10 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
       ? Math.min((interviewViewed / topic.interviewQuestionCount) * 100, 100)
       : 0;
 
-    const overall = (theory + practice + quiz + interview) / 4;
-    return { theory, practice, quiz, interview, overall };
+    // Topics without practice problems yet are scored on the other three parts
+    const parts = hasPractice ? [theory, practice, quiz, interview] : [theory, quiz, interview];
+    const overall = parts.reduce((sum, value) => sum + value, 0) / parts.length;
+    return { theory, practice, quiz, interview, overall, hasPractice };
   };
 
   const filteredTopics = topics.filter(topic => {
@@ -124,90 +132,96 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
   })();
   const currentRating = progress?.currentRating || 1200;
 
+  // Summary numbers for the stat row, from the same per-topic scores as the list
+  const allTopicProgress = topics.map(getTopicProgress);
+  const topicsStarted = allTopicProgress.filter(p => p.overall > 0).length;
+  const overallProgress = totalTopics > 0
+    ? Math.round(allTopicProgress.reduce((sum, p) => sum + p.overall, 0) / totalTopics)
+    : 0;
+  const quizzesTaken = Object.keys(progress?.quizScores || {}).length;
+
   const navigateToTopic = (slug: string) => {
     onNavigateToSection?.(`topic-detail&topicId=${slug}`);
   };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-3 text-muted-foreground">Loading topics...</p>
+      <div className="space-y-6" aria-busy="true">
+        <p className="sr-only" role="status">Loading topics...</p>
+        <Skeleton className="h-12 w-72" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px]" />)}
         </div>
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-96 w-full" />
       </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <Card className="p-8 text-center space-y-3">
+        <p className="font-medium">Couldn't load topics</p>
+        <p className="text-sm text-muted-foreground">Check your internet connection and try again.</p>
+        <Button onClick={loadData} variant="secondary" className="gap-2">
+          <RotateCcw className="h-4 w-4" /> Try again
+        </Button>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Topic Progress</h1>
-        <p className="text-muted-foreground">Master DSA topics with theory, practice, quizzes & interview prep</p>
-      </div>
+      <PageHeader
+        title="Topics"
+        description="Learn each topic through articles, practice problems, a quiz and interview questions."
+      />
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Topics Mastered</p>
-              <p className="text-2xl font-bold">{topicsMastered}<span className="text-sm font-normal text-muted-foreground">/{totalTopics}</span></p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <Code className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Problems Solved</p>
-              <p className="text-2xl font-bold">{totalProblemsSolved}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-              <HelpCircle className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Avg Quiz Score</p>
-              <p className="text-2xl font-bold">{avgQuizScore}%</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Trophy className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Rating</p>
-              <p className="text-2xl font-bold">{currentRating}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile
+          label="Overall"
+          value={`${overallProgress}%`}
+          hint="Average across all topics"
+          icon={Gauge}
+          highlight={overallProgress > 0}
+        />
+        <StatTile
+          label="Topics started"
+          value={topicsStarted}
+          unit={`/ ${totalTopics}`}
+          hint={`${topicsMastered} mastered`}
+          icon={BookOpen}
+          title="A topic counts as mastered at 80% or more"
+        />
+        <StatTile
+          label="Avg quiz score"
+          value={`${avgQuizScore}%`}
+          hint={quizzesTaken === 0 ? "No quizzes taken yet" : `${quizzesTaken} ${quizzesTaken === 1 ? "quiz" : "quizzes"} taken`}
+          icon={HelpCircle}
+        />
+        <StatTile
+          label="Solved"
+          value={totalProblemsSolved}
+          unit={totalProblemsSolved === 1 ? "problem" : "problems"}
+          hint={`Rating ${currentRating}`}
+          icon={CheckCircle2}
+        />
       </div>
 
       {/* Search & Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
             placeholder="Search topics..."
+            aria-label="Search topics"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-9"
           />
         </div>
         <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by level">
             <SelectValue placeholder="All Levels" />
           </SelectTrigger>
           <SelectContent>
@@ -219,115 +233,91 @@ export const TopicProgress = ({ onNavigateToSection }: TopicProgressProps) => {
         </Select>
       </div>
 
-      {/* Topics Grid */}
+      {/* Topics */}
       {filteredTopics.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
-            <p className="text-muted-foreground">No topics found. Try a different search or filter.</p>
-          </CardContent>
-        </Card>
+        <EmptyState icon={Search} title="No topics found" description="Try a different search or filter." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTopics.map(topic => {
-            const prog = getTopicProgress(topic);
-            const tc = getColor(topic.color);
+        <Card className="overflow-hidden">
+          <ul className="divide-y">
+            {filteredTopics.map(topic => {
+              const prog = getTopicProgress(topic);
+              const percent = Math.round(prog.overall);
+              const mastered = prog.overall >= 80;
+              const Icon = TOPIC_ICONS[topic.slug] || BookOpen;
 
-            return (
-              <Card
-                key={topic._id}
-                className={cn(
-                  "cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 group overflow-hidden",
-                  prog.overall >= 80 && "ring-2 ring-green-300"
-                )}
-                onClick={() => navigateToTopic(topic.slug)}
-              >
-                <CardContent className="p-0">
-                  <div className={cn("h-1.5", tc.bg)} />
-                  <div className="p-5 space-y-4">
-                    {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center text-xl", tc.light)}>
-                          {topic.icon}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold group-hover:text-primary transition-colors">{topic.name}</h3>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border", DIFFICULTY_COLORS[topic.difficulty])}>
-                              {topic.difficulty}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3" /> {topic.estimatedHours}h
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
-                    </div>
+              return (
+                <li key={topic._id}>
+                  <button
+                    type="button"
+                    onClick={() => navigateToTopic(topic.slug)}
+                    className="group flex w-full flex-col gap-3 p-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:flex-row sm:items-center sm:gap-6 sm:px-5"
+                  >
+                    {/* Name, level and the four parts */}
+                    <span className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-muted">
+                        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="text-sm font-medium">{topic.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            <span className="capitalize">{topic.difficulty}</span>
+                            {" · "}
+                            <span className="font-mono tabular-nums">{topic.estimatedHours}h</span>
+                          </span>
+                        </span>
+                        <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground sm:line-clamp-1">{topic.description}</span>
+                        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                          <ProgressMini label="Theory" value={prog.theory} />
+                          {prog.hasPractice && <ProgressMini label="Practice" value={prog.practice} />}
+                          <ProgressMini label="Quiz" value={prog.quiz} />
+                          <ProgressMini label="Interview" value={prog.interview} />
+                        </span>
+                      </span>
+                    </span>
 
-                    <p className="text-xs text-muted-foreground line-clamp-2">{topic.description}</p>
-
-                    {/* Progress Ring + Breakdown */}
-                    <div className="flex items-center gap-4">
-                      <div className="relative w-14 h-14 flex-shrink-0">
-                        <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-                          <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30" />
-                          <circle
-                            cx="28" cy="28" r="24"
-                            stroke="currentColor" strokeWidth="4" fill="none"
-                            strokeDasharray={`${2 * Math.PI * 24}`}
-                            strokeDashoffset={`${2 * Math.PI * 24 * (1 - prog.overall / 100)}`}
-                            strokeLinecap="round"
-                            className={tc.text}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-xs font-bold">{Math.round(prog.overall)}%</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <ProgressMini label="Theory" value={prog.theory} icon={<FileText className="h-3 w-3" />} />
-                        <ProgressMini label="Practice" value={prog.practice} icon={<Code className="h-3 w-3" />} />
-                        <ProgressMini label="Quiz" value={prog.quiz} icon={<HelpCircle className="h-3 w-3" />} />
-                        <ProgressMini label="Interview" value={prog.interview} icon={<MessageSquare className="h-3 w-3" />} />
-                      </div>
-                    </div>
-
-                    {/* Meta */}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
-                      <div className="flex gap-3">
-                        <span>{topic.subtopics?.length || 0} articles</span>
-                        <span>{topic.mcqCount || 0} MCQs</span>
-                        <span>{topic.interviewQuestionCount || 0} IQs</span>
-                      </div>
-                      <Button variant="ghost" size="sm" className={cn("h-7 text-xs gap-1 px-2", tc.text)}>
-                        {prog.overall > 0 ? 'Continue' : 'Start'} <ChevronRight className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    {/* Overall progress */}
+                    <span className="flex w-full shrink-0 flex-col gap-1.5 pl-11 sm:w-52 sm:pl-0">
+                      <span className="flex items-center justify-between gap-2">
+                        <span
+                          className={cn(
+                            "flex items-center gap-1 font-mono text-sm font-medium tabular-nums",
+                            mastered ? "text-success" : percent === 0 && "text-muted-foreground"
+                          )}
+                        >
+                          {mastered && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                          {percent}%
+                        </span>
+                        <span className="flex items-center gap-0.5 text-xs text-muted-foreground transition-colors group-hover:text-primary">
+                          {prog.overall > 0 ? 'Continue' : 'Start'}
+                          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </span>
+                      </span>
+                      <Progress value={prog.overall} />
+                      <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                        {topic.subtopics?.length || 0} articles · {topic.mcqCount || 0} MCQs · {topic.interviewQuestionCount || 0} IQs
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       )}
     </div>
   );
 };
 
-const ProgressMini = ({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) => (
-  <div className="flex items-center gap-2">
-    <div className="text-muted-foreground/60">{icon}</div>
-    <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-      <div
-        className={cn(
-          "h-full rounded-full transition-all",
-          value >= 80 ? "bg-green-500" : value > 0 ? "bg-primary" : "bg-transparent"
-        )}
-        style={{ width: `${Math.min(value, 100)}%` }}
-      />
-    </div>
-    <span className="text-[10px] text-muted-foreground w-7 text-right">{Math.round(value)}%</span>
-  </div>
+const ProgressMini = ({ label, value }: { label: string; value: number }) => (
+  <span
+    className="inline-flex items-center gap-1 font-mono text-[11px] leading-4 text-muted-foreground"
+    title={`${label}: ${Math.round(value)}%`}
+    aria-label={`${label}: ${Math.round(value)}%`}
+  >
+    {label}
+    <span className={cn("tabular-nums", value >= 80 ? "text-success" : value > 0 && "text-foreground")}>
+      {Math.round(value)}%
+    </span>
+  </span>
 );

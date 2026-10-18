@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Calendar, Edit, Trash2, Play, GripVertical } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, Clock, GripVertical, Pencil, Play, Trash2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { describeDeadline } from "@/lib/deadlines";
 
 interface Task {
   _id: string;
@@ -31,32 +30,21 @@ interface KanbanViewProps {
   onToggleComplete: (taskId: string) => void;
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "border-l-gray-400",
-  medium: "border-l-yellow-500",
-  high: "border-l-amber-500",
-  urgent: "border-l-red-500",
-};
-
+// Priority colours: urgent and high red, medium amber, low grey
 const PRIORITY_BADGES: Record<string, string> = {
-  low: "bg-gray-100 text-gray-700",
-  medium: "bg-yellow-100 text-yellow-800",
-  high: "bg-amber-100 text-amber-800",
-  urgent: "bg-red-100 text-red-800",
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-warning/10 text-warning",
+  high: "bg-destructive/10 text-destructive",
+  urgent: "bg-destructive/15 text-destructive",
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  study: "bg-blue-100 text-blue-700",
-  practice: "bg-green-100 text-green-700",
-  interview: "bg-purple-100 text-purple-700",
-  review: "bg-amber-100 text-amber-700",
-  other: "bg-gray-100 text-gray-700",
-};
+const BADGE_CLASS = "inline-flex items-center rounded-md border border-transparent px-1.5 py-0.5 text-xs font-medium capitalize leading-4";
 
-const COLUMNS: { id: 'todo' | 'in_progress' | 'done'; title: string; emoji: string; bgClass: string; headerClass: string }[] = [
-  { id: 'todo', title: 'To Do', emoji: '📋', bgClass: 'bg-slate-50/50', headerClass: 'bg-slate-100 text-slate-800' },
-  { id: 'in_progress', title: 'In Progress', emoji: '⚡', bgClass: 'bg-blue-50/50', headerClass: 'bg-blue-100 text-blue-800' },
-  { id: 'done', title: 'Done', emoji: '✅', bgClass: 'bg-green-50/50', headerClass: 'bg-green-100 text-green-800' },
+// Status icons: in progress amber, done green, to do grey
+const COLUMNS: { id: 'todo' | 'in_progress' | 'done'; title: string; icon: LucideIcon; iconClass: string }[] = [
+  { id: 'todo', title: 'To Do', icon: Circle, iconClass: 'text-muted-foreground' },
+  { id: 'in_progress', title: 'In Progress', icon: CircleDot, iconClass: 'text-warning' },
+  { id: 'done', title: 'Done', icon: CheckCircle2, iconClass: 'text-success' },
 ];
 
 export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, onToggleComplete }: KanbanViewProps) => {
@@ -68,13 +56,6 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
       const taskStatus = t.status || (t.completed ? 'done' : 'todo');
       return taskStatus === status;
     });
-  };
-
-  const getDaysUntilDeadline = (deadline: string) => {
-    const today = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -109,44 +90,45 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
   };
 
   return (
-    <div className="grid grid-cols-3 gap-4 min-h-[500px]">
+    <div className="grid grid-cols-1 gap-4 md:min-h-[500px] md:grid-cols-3">
       {COLUMNS.map(column => {
         const columnTasks = getTasksByStatus(column.id);
         const isDragOver = dragOverColumn === column.id;
+        const ColumnIcon = column.icon;
 
         return (
           <div
             key={column.id}
             className={cn(
-              "rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col",
-              isDragOver ? "border-primary bg-primary/5 scale-[1.01]" : "border-transparent",
-              column.bgClass
+              "flex min-w-0 flex-col rounded-lg border bg-muted/30 transition-colors",
+              isDragOver && "border-primary/50 bg-accent/40"
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.id)}
           >
             {/* Column Header */}
-            <div className={cn("rounded-t-lg px-4 py-3 flex items-center justify-between", column.headerClass)}>
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5">
               <div className="flex items-center gap-2">
-                <span>{column.emoji}</span>
-                <span className="font-semibold text-sm">{column.title}</span>
+                <ColumnIcon className={cn("h-4 w-4", column.iconClass)} />
+                <span className="text-sm font-medium">{column.title}</span>
               </div>
-              <Badge variant="secondary" className="text-xs">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {columnTasks.length}
-              </Badge>
+              </span>
             </div>
 
             {/* Column Body */}
-            <div className="flex-1 p-3 space-y-3 overflow-y-auto max-h-[600px]">
+            <div className="flex-1 space-y-2 overflow-y-auto max-h-[600px] p-2">
               {columnTasks.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm opacity-60">
-                  {isDragOver ? "Drop here!" : "No tasks"}
+                <div className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
+                  {isDragOver ? "Drop here" : "No tasks"}
                 </div>
               ) : (
                 columnTasks.map(task => {
-                  const daysLeft = getDaysUntilDeadline(task.deadline);
-                  const isOverdue = daysLeft < 0 && !task.completed;
+                  const due = describeDeadline(task.deadline);
+                  const isOverdue = due.overdue && !task.completed;
+                  const isDueSoon = due.soon && !task.completed;
                   const isDragging = draggedId === task._id;
 
                   return (
@@ -156,81 +138,76 @@ export const KanbanView = ({ tasks, onStatusChange, onEdit, onDelete, onFocus, o
                       onDragStart={(e) => handleDragStart(e, task._id)}
                       onDragEnd={handleDragEnd}
                       className={cn(
-                        "bg-background rounded-lg border border-border shadow-sm cursor-grab active:cursor-grabbing transition-all duration-200 hover:shadow-md border-l-4",
-                        PRIORITY_COLORS[task.priority],
-                        isDragging && "opacity-40 scale-95",
-                        isOverdue && "ring-1 ring-red-300"
+                        "cursor-grab rounded-md border bg-card p-3 transition-colors hover:border-input active:cursor-grabbing",
+                        isDragging && "opacity-40",
+                        isOverdue && "border-destructive/40"
                       )}
                     >
-                      <div className="p-3 space-y-2">
+                      <div className="space-y-2">
                         {/* Drag handle + Title */}
                         <div className="flex items-start gap-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              "font-medium text-sm leading-tight",
-                              task.completed && "line-through text-muted-foreground"
-                            )}>
-                              {task.title}
-                            </p>
-                          </div>
+                          <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+                          <p className={cn(
+                            "min-w-0 flex-1 break-words text-sm font-medium leading-5",
+                            task.completed && "line-through text-muted-foreground"
+                          )}>
+                            {task.title}
+                          </p>
                         </div>
 
                         {/* Badges */}
-                        <div className="flex flex-wrap gap-1 pl-6">
-                          <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_BADGES[task.priority])}>
+                        <div className="flex flex-wrap items-center gap-1 pl-6">
+                          <span className={cn(BADGE_CLASS, task.completed ? "bg-muted text-muted-foreground" : PRIORITY_BADGES[task.priority])}>
                             {task.priority}
-                          </Badge>
-                          <Badge className={cn("text-[10px] px-1.5 py-0", CATEGORY_COLORS[task.category])}>
+                          </span>
+                          <span className="chip capitalize">
                             {task.category}
-                          </Badge>
+                          </span>
                         </div>
 
                         {/* Deadline */}
-                        <div className="flex items-center justify-between pl-6">
+                        <div className="flex items-center justify-between gap-2 pl-6">
                           <div className={cn(
                             "flex items-center gap-1 text-xs",
-                            isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
+                            isOverdue ? "font-medium text-destructive" : isDueSoon ? "text-warning" : "text-muted-foreground"
                           )}>
                             <Clock className="h-3 w-3" />
-                            {isOverdue
-                              ? `${Math.abs(daysLeft)}d overdue`
-                              : daysLeft === 0
-                              ? "Due today"
-                              : `${daysLeft}d left`
-                            }
+                            <span title={due.text}>{task.completed ? "Done" : due.short}</span>
                           </div>
 
                           {/* Actions */}
-                          <div className="flex items-center gap-0.5">
+                          <div className="-mr-1 flex items-center">
                             {column.id !== 'done' && (
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-primary hover:text-primary"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                 onClick={() => onFocus(task)}
-                                title="Start Focus"
+                                title="Start Focus Mode"
+                                aria-label="Start Focus Mode"
                               >
-                                <Play className="h-3 w-3" />
+                                <Play className="h-4 w-4" />
                               </Button>
                             )}
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
                               onClick={() => onEdit(task)}
-                              title="Edit"
+                              title="Edit task"
+                              aria-label="Edit task"
                             >
-                              <Edit className="h-3 w-3" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => onDelete(task._id)}
-                              title="Delete"
+                              title="Delete task"
+                              aria-label="Delete task"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>

@@ -5,8 +5,59 @@ const ProblemBank = require('../models/ProblemBank');
 const TodaysProblemBank = require('../models/TodaysProblemBank');
 const auth = require('../middleware/auth');
 const { firstTooLong, isNonEmptyString, toBoundedInt } = require('../lib/validate');
+const { timeZoneOf, dayKey, countStreak, dayOfYear } = require('../lib/days');
+const { practiceTopicsFor } = require('../lib/topicMap');
 
 const router = express.Router();
+
+// Streaks are worked out from the solve history (in the user's timezone) instead of
+// being counted up and down, so opening the app never changes them and they can't drift.
+//   currentStreak:       days in a row with at least one solved problem
+//   todaysProblemStreak: days in a row the daily problem was solved
+const applyStreaks = async (progress, userId, timeZone) => {
+  const since = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+  const solves = await Problem.find({ userId, status: 'solved', solvedAt: { $gte: since } })
+    .select('solvedAt isDailyProblem').lean();
+
+  const solveDays = new Set();
+  const dailyDays = new Set();
+  const activity = {};
+  for (const solve of solves) {
+    const day = dayKey(solve.solvedAt, timeZone);
+    solveDays.add(day);
+    activity[day] = (activity[day] || 0) + 1;
+    if (solve.isDailyProblem) dailyDays.add(day);
+  }
+
+  const today = dayKey(new Date(), timeZone);
+  progress.currentStreak = countStreak(solveDays, today);
+  progress.todaysProblemStreak = countStreak(dailyDays, today);
+  progress.longestStreak = Math.max(progress.longestStreak || 0, progress.currentStreak);
+  progress.longestTodaysProblemStreak = Math.max(progress.longestTodaysProblemStreak || 0, progress.todaysProblemStreak);
+
+  // Problems solved per day ("YYYY-MM-DD" -> count), for the activity calendar
+  return activity;
+};
+
+// The same problem for everyone on a given calendar day, rotating through the bank.
+// No sort on purpose: natural order matches the original find({}) list, so the rotation is unchanged.
+const findDailyProblem = async (day) => {
+  const problemCount = await ProblemBank.countDocuments();
+  if (problemCount === 0) return null;
+  const seed = Number(day.slice(0, 4)) * 1000 + dayOfYear(day);
+  return ProblemBank.findOne().skip(seed % problemCount);
+};
+
+// Whether the user solved this problem on the given day (in their timezone)
+const solvedOnDay = async (userId, problemId, day, timeZone) => {
+  const recent = await Problem.find({
+    userId,
+    problemId,
+    status: 'solved',
+    solvedAt: { $gte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }
+  }).select('solvedAt').lean();
+  return recent.some((solve) => dayKey(solve.solvedAt, timeZone) === day);
+};
 
 const SUBMISSION_LIMITS = { code: 50000, solution: 50000, notes: 5000, title: 300, problemUrl: 2048 };
 // Topic slugs and subtopic ids become keys in the progress document
@@ -57,12 +108,15 @@ router.get('/', auth, async (req, res) => {
       userId: req.user._id,
       status: 'solved'
     });
+    const activity = await applyStreaks(progress, req.user._id, timeZoneOf(req));
 
     await progress.save();
 
     res.json({
+      activity,
       progress: {
-        ...progress.toObject(),
+        // flattenMaps: quizScores / interviewQuestionsViewed are Maps, which JSON can't carry
+        ...progress.toObject({ flattenMaps: true }),
         todaysProblemStreak: progress.todaysProblemStreak || 0,
         longestTodaysProblemStreak: progress.longestTodaysProblemStreak || 0
       },
@@ -174,36 +228,7 @@ router.post('/problem', auth, async (req, res) => {
       }
     }
 
-    // Update streak logic
-    const today = new Date();
-    const lastActivity = new Date(progress.lastActivityDate);
-    
-    // Check if it's a new day
-    if (today.toDateString() !== lastActivity.toDateString()) {
-      const diffTime = Math.abs(today - lastActivity);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        // Consecutive day - streak continues
-        progress.currentStreak += 1;
-      } else if (diffDays > 1) {
-        // Streak broken - reset to 1 for today
-        progress.currentStreak = 1;
-      }
-      // If diffDays === 0, it's the same day, don't change streak
-    } else {
-      // Same day - if this is the first problem solved today, start streak at 1
-      if (progress.currentStreak === 0) {
-        progress.currentStreak = 1;
-      }
-    }
-    
-    // Update longest streak
-    if (progress.currentStreak > progress.longestStreak) {
-      progress.longestStreak = progress.currentStreak;
-    }
-    
-    // Update last activity for streak
+    await applyStreaks(progress, req.user._id, timeZoneOf(req));
     progress.lastActivityDate = new Date();
 
     await progress.save();
@@ -240,6 +265,15 @@ router.get('/recommendations', auth, async (req, res) => {
       });
     }
 
+    // Fresh numbers, so a tip never contradicts the stats shown next to it
+    // (the dashboard asks for these at the same time as the progress itself)
+    await applyStreaks(progress, req.user._id, timeZoneOf(req));
+    progress.problemsSolvedThisWeek = await Problem.countDocuments({
+      userId: req.user._id,
+      status: 'solved',
+      solvedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+    });
+
     const recommendations = [];
 
     // Topic-based recommendations
@@ -247,16 +281,18 @@ router.get('/recommendations', auth, async (req, res) => {
       'arrays', 'strings', 'linkedLists', 'trees', 'graphs',
       'dynamicProgramming', 'greedy', 'backtracking', 'binarySearch'
     ];
+    // "dynamicProgramming" -> "Dynamic Programming"
+    const topicName = (topic) => topic.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
     for (const topic of topicOrder) {
       const topicProgress = progress.topicProgress[topic] || 0;
-      
+
       if (topicProgress < 5) {
         recommendations.push({
           type: 'topic',
-          title: `Practice ${topic.charAt(0).toUpperCase() + topic.slice(1)}`,
-          description: `You've solved ${topicProgress} ${topic} problems. Aim for at least 5 to build a strong foundation.`,
-          action: `Start ${topic.charAt(0).toUpperCase() + topic.slice(1)}`,
+          title: `Practice ${topicName(topic)}`,
+          description: `You've solved ${topicProgress} ${topicName(topic).toLowerCase()} problems. Aim for at least 5 to build a strong foundation.`,
+          action: `Start ${topicName(topic)}`,
           priority: topicProgress === 0 ? 'high' : 'medium',
           reason: topicProgress === 0 ? 'New topic to explore' : 'Need more practice',
           topic,
@@ -271,8 +307,10 @@ router.get('/recommendations', auth, async (req, res) => {
     if (progress.currentStreak < 7) {
       recommendations.push({
         type: 'streak',
-        title: 'Build Your Streak',
-        description: `You're on a ${progress.currentStreak}-day streak! Try to reach 7 days for a bonus.`,
+        title: progress.currentStreak > 0 ? 'Build Your Streak' : 'Start a Streak',
+        description: progress.currentStreak > 0
+          ? `You're on a ${progress.currentStreak}-day streak! Keep going to reach 7 days.`
+          : 'Solve one problem today to start a streak, then come back tomorrow to grow it.',
         action: 'Solve Today\'s Problem',
         priority: 'medium',
         reason: 'Consistency is key to learning',
@@ -442,28 +480,29 @@ router.get('/problem-bank', auth, async (req, res) => {
 router.get('/problems-by-topic/:topic', auth, async (req, res) => {
   try {
     const { topic } = req.params;
-    
-    const problems = await ProblemBank.find({ topics: topic })
+
+    // Accepts a topic page slug ("linked-lists") as well as a problem-bank topic ("linkedLists")
+    const problems = await ProblemBank.find({ topics: { $in: practiceTopicsFor(topic) } })
       .sort({ orderInTopic: 1, difficulty: 1 });
 
     // Get user's solved problems for this topic
-    const userSolvedProblems = await Problem.find({ 
+    const userSolvedProblems = await Problem.find({
       userId: req.user._id,
       status: 'solved'
     }).select('problemId');
 
-    const solvedProblemIds = userSolvedProblems.map(p => p.problemId);
+    const solvedProblemIds = new Set(userSolvedProblems.map(p => p.problemId));
 
     const problemsWithStatus = problems.map(problem => ({
       ...problem.toObject(),
-      isSolved: solvedProblemIds.includes(problem.problemId)
+      isSolved: solvedProblemIds.has(problem.problemId)
     }));
 
     res.json({
       problems: problemsWithStatus,
       topic,
       totalProblems: problems.length,
-      solvedProblems: solvedProblemIds.length
+      solvedProblems: problemsWithStatus.filter(p => p.isSolved).length
     });
 
   } catch (error) {
@@ -553,6 +592,11 @@ router.post('/mark-solved', auth, async (req, res) => {
       status: 'solved'
     });
 
+    // Solving today's problem from a topic page still counts towards the daily streak
+    const timeZone = timeZoneOf(req);
+    const dailyProblem = await findDailyProblem(dayKey(new Date(), timeZone));
+    solvedProblem.isDailyProblem = dailyProblem?.problemId === solvedProblem.problemId;
+
     await solvedProblem.save();
 
     // Update progress
@@ -581,36 +625,7 @@ router.post('/mark-solved', auth, async (req, res) => {
       }
     }
 
-    // Update streak logic
-    const today = new Date();
-    const lastActivity = new Date(progress.lastActivityDate);
-    
-    // Check if it's a new day
-    if (today.toDateString() !== lastActivity.toDateString()) {
-      const diffTime = Math.abs(today - lastActivity);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        // Consecutive day - streak continues
-        progress.currentStreak += 1;
-      } else if (diffDays > 1) {
-        // Streak broken - reset to 1 for today
-        progress.currentStreak = 1;
-      }
-      // If diffDays === 0, it's the same day, don't change streak
-    } else {
-      // Same day - if this is the first problem solved today, start streak at 1
-      if (progress.currentStreak === 0) {
-        progress.currentStreak = 1;
-      }
-    }
-    
-    // Update longest streak
-    if (progress.currentStreak > progress.longestStreak) {
-      progress.longestStreak = progress.currentStreak;
-    }
-    
-    // Update last activity for streak
+    await applyStreaks(progress, req.user._id, timeZoneOf(req));
     progress.lastActivityDate = new Date();
 
     await progress.save();
@@ -682,61 +697,21 @@ router.delete('/reset', auth, async (req, res) => {
 // Get today's problem
 router.get('/todays-problem', auth, async (req, res) => {
   try {
-    // Created with defaults (streaks 0, rating 1200) the first time
-    const progress = await Progress.forUser(req.user._id);
+    // "Today" is the user's own calendar day, so the problem changes at their midnight
+    const timeZone = timeZoneOf(req);
+    const today = dayKey(new Date(), timeZone);
 
-    // Get today's date for consistent daily problem selection
-    const today = new Date();
-    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-    const year = today.getFullYear();
-    
-    // Create a unique seed for today using year and day of year
-    const todaySeed = year * 1000 + dayOfYear;
-    
-    const problemCount = await ProblemBank.countDocuments();
-
-    if (problemCount === 0) {
+    const todaysProblem = await findDailyProblem(today);
+    if (!todaysProblem) {
       return res.status(404).json({ message: 'No problems available in problem bank' });
     }
 
-    // Use today's seed to consistently select the same problem for everyone today.
-    // Fetches just that one problem instead of loading the whole bank on every request.
-    // No sort on purpose: natural order matches the old find({}) list, so the rotation is unchanged.
-    const todaysProblem = await ProblemBank.findOne().skip(todaySeed % problemCount);
-    
-    if (!todaysProblem) {
-      return res.status(404).json({ message: 'Today\'s problem not found' });
-    }
+    const solvedToday = await solvedOnDay(req.user._id, todaysProblem.problemId, today, timeZone);
 
-    // Check if user has already solved today's problem
-    const solvedToday = await Problem.findOne({
-      userId: req.user._id,
-      problemId: todaysProblem.problemId,
-      status: 'solved',
-      solvedAt: {
-        $gte: new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      }
-    });
-
-    // Check if user solved a problem yesterday to maintain streak
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const solvedYesterday = await Problem.findOne({
-      userId: req.user._id,
-      status: 'solved',
-      solvedAt: {
-        $gte: new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()),
-        $lt: new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      }
-    });
-
-    // Update streak logic - reset streak if user hasn't solved today's problem yet
-    if (!solvedToday) {
-      // If user hasn't solved today's problem, streak should be 0
-      progress.todaysProblemStreak = 0;
-      await progress.save();
-    }
+    // Created with defaults (streaks 0, rating 1200) the first time
+    const progress = await Progress.forUser(req.user._id);
+    await applyStreaks(progress, req.user._id, timeZone);
+    await progress.save();
 
     res.json({
       todaysProblem: {
@@ -750,9 +725,9 @@ router.get('/todays-problem', auth, async (req, res) => {
         constraints: todaysProblem.constraints || [],
         hints: todaysProblem.hints || [],
         approach: todaysProblem.approach || '',
-        currentDay: dayOfYear,
+        currentDay: dayOfYear(today),
         totalDays: 365, // Days in a year
-        isSolved: !!solvedToday
+        isSolved: solvedToday
       },
       streak: {
         currentStreak: progress.currentStreak,
@@ -780,25 +755,19 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
       return res.status(400).json({ error: `${tooLong} is too long.` });
     }
 
-    // Get today's problem from ProblemBank (main problem bank)
-    const todaysProblem = await ProblemBank.findOne({ problemId });
-    
+    const timeZone = timeZoneOf(req);
+    const today = dayKey(new Date(), timeZone);
+
+    // Only today's problem counts towards the daily streak
+    const todaysProblem = await findDailyProblem(today);
     if (!todaysProblem) {
       return res.status(404).json({ error: 'Today\'s problem not found.' });
     }
+    if (todaysProblem.problemId !== problemId) {
+      return res.status(400).json({ error: 'Today\'s problem has changed. Refresh the page to get the new one.' });
+    }
 
-    // Check if already solved today
-    const today = new Date();
-    const existingProblem = await Problem.findOne({
-      userId: req.user._id,
-      problemId: problemId,
-      status: 'solved',
-      solvedAt: {
-        $gte: new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      }
-    });
-
-    if (existingProblem) {
+    if (await solvedOnDay(req.user._id, problemId, today, timeZone)) {
       return res.status(400).json({ error: 'Today\'s problem already solved.' });
     }
 
@@ -819,6 +788,7 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
       timeSpent: timeSpent || 0,
       notes: notes || '',
       status: 'solved',
+      isDailyProblem: true,
       solvedAt: new Date()
     });
 
@@ -851,41 +821,7 @@ router.post('/todays-problem/solve', auth, async (req, res) => {
       progress.highestRating = progress.currentRating;
     }
 
-    // Update today's problem streak
-    const lastActivity = progress.lastActivityDate ? new Date(progress.lastActivityDate) : null;
-    
-    // Check if it's a new day
-    if (!lastActivity || today.toDateString() !== lastActivity.toDateString()) {
-      const diffTime = lastActivity ? Math.abs(today - lastActivity) : 0;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        // Consecutive day - streak continues
-        progress.currentStreak += 1;
-        progress.todaysProblemStreak += 1;
-      } else if (diffDays > 1) {
-        // Streak broken - reset to 1 for today
-        progress.currentStreak = 1;
-        progress.todaysProblemStreak = 1;
-      } else {
-        // First time solving - start streak at 1
-        progress.currentStreak = 1;
-        progress.todaysProblemStreak = 1;
-      }
-    } else {
-      // Same day - maintain current streak (don't increment)
-      // This ensures streak only increases once per day
-    }
-    
-    // Update longest streaks
-    if (progress.currentStreak > progress.longestStreak) {
-      progress.longestStreak = progress.currentStreak;
-    }
-    if (progress.todaysProblemStreak > progress.longestTodaysProblemStreak) {
-      progress.longestTodaysProblemStreak = progress.todaysProblemStreak;
-    }
-    
-    // Update last activity for streak
+    await applyStreaks(progress, req.user._id, timeZone);
     progress.lastActivityDate = new Date();
 
     await progress.save();

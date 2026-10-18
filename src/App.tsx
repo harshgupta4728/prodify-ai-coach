@@ -11,10 +11,12 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    {/* Prodify has one theme: dark */}
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      forcedTheme="dark"
+      defaultTheme="dark"
+      enableSystem={false}
       disableTransitionOnChange
     >
       <TooltipProvider>

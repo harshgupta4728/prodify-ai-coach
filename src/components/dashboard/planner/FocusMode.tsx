@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Play, Pause, Square, SkipForward, CheckCircle, X, Timer, Zap } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Play, Pause, Square, SkipForward, CheckCircle2, X, Timer, Coffee } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FocusTask {
@@ -23,21 +23,25 @@ interface PomodoroSettings {
   breakMin: number;
   longBreakMin: number;
   sessionsBeforeLong: number;
+  // When off, the timer waits after a break instead of starting the next work session
+  autoStart: boolean;
 }
 
+// Saved by Settings > Focus Timer ("prodify-pomodoro" is the old key)
 const loadPomodoroSettings = (): PomodoroSettings => {
   try {
-    const saved = localStorage.getItem("prodify-pomodoro");
-    if (saved) return JSON.parse(saved);
+    const saved = localStorage.getItem("prodify-pomodoro-settings") || localStorage.getItem("prodify-pomodoro");
+    if (saved) return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4, autoStart: false, ...JSON.parse(saved) };
   } catch {
     // Fall back to defaults if saved settings are unreadable
   }
-  return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4 };
+  return { workMin: 25, breakMin: 5, longBreakMin: 15, sessionsBeforeLong: 4, autoStart: false };
 };
 
+// Saved by Settings > Sound ("prodify-sounds" is the old key)
 const loadSoundEnabled = (): boolean => {
   try {
-    const saved = localStorage.getItem("prodify-sounds");
+    const saved = localStorage.getItem("prodify-sound-settings") || localStorage.getItem("prodify-sounds");
     if (saved) {
       const s = JSON.parse(saved);
       return s.master !== false;
@@ -97,6 +101,7 @@ export const FocusMode = ({ task, onStop, onComplete, onClose }: FocusModeProps)
             // Break ended → start new work session
             setIsBreak(false);
             setSessionCount(s => s + 1);
+            if (!settings.current.autoStart) setIsPaused(true);
             return settings.current.workMin * 60;
           }
         }
@@ -144,81 +149,68 @@ export const FocusMode = ({ task, onStop, onComplete, onClose }: FocusModeProps)
     ? 1 - timeLeft / ((sessionCount % settings.current.sessionsBeforeLong === 0 ? settings.current.longBreakMin : settings.current.breakMin) * 60)
     : 1 - timeLeft / (settings.current.workMin * 60);
 
+  // The bar only accepts 0-100
+  const progressPercent = Number.isFinite(progress) ? Math.min(Math.max(progress * 100, 0), 100) : 0;
+
+  // Stays at the top of the page while the user scrolls their task list
   return (
-    <div className="sticky top-0 z-40 mb-4">
-      <div className={cn(
-        "rounded-xl p-4 shadow-lg border backdrop-blur-sm transition-colors duration-500",
-        isBreak
-          ? "bg-emerald-500/10 border-emerald-500/30"
-          : "bg-primary/10 border-primary/30"
-      )}>
-        {/* Progress bar */}
-        <div className="absolute top-0 left-0 right-0 h-1 rounded-t-xl overflow-hidden bg-black/10">
-          <div
-            className={cn(
-              "h-full transition-all duration-1000 ease-linear",
-              isBreak ? "bg-emerald-500" : "bg-primary"
-            )}
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
+    <div className="sticky top-0 z-40">
+      <section aria-label="Focus mode" className="overflow-hidden rounded-lg border bg-card">
+        {/* Progress through the current session */}
+        <Progress
+          value={progressPercent}
+          aria-label={isBreak ? "Break progress" : "Session progress"}
+          className="h-1 rounded-none"
+        />
 
-        <div className="flex items-center justify-between gap-4">
-          {/* Left: Task info */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
-              isBreak ? "bg-emerald-500/20" : "bg-primary/20"
-            )}>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
+          {/* Task info */}
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-muted">
               {isBreak ? (
-                <Zap className={cn("h-5 w-5", isBreak ? "text-emerald-600" : "text-primary")} />
+                <Coffee className="h-4 w-4 text-muted-foreground" />
               ) : (
-                <Timer className="h-5 w-5 text-primary animate-pulse" />
+                <Timer className="h-4 w-4 text-primary" />
               )}
-            </div>
+            </span>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="eyebrow truncate">
                 {isBreak ? "Break Time" : `Focus Session #${sessionCount}`}
+                {isPaused && " · Paused"}
               </p>
-              <p className="font-semibold truncate">{task.title}</p>
+              <p className="truncate text-sm font-medium">{task.title}</p>
             </div>
           </div>
 
-          {/* Center: Timer */}
-          <div className="flex items-center gap-4">
-            <div className="text-center">
-              <p className={cn(
-                "text-3xl font-mono font-bold tabular-nums",
-                isBreak ? "text-emerald-600" : "text-primary",
-                !isPaused && "animate-pulse"
-              )}>
-                {formatTime(timeLeft)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {elapsedMinutes > 0 ? `${elapsedMinutes} min focused` : "Just started"}
-              </p>
-            </div>
-          </div>
+          {/* Timer */}
+          <p className={cn(
+            "font-mono text-3xl font-semibold leading-none tracking-tight tabular-nums sm:text-5xl",
+            isPaused ? "text-muted-foreground" : "text-foreground"
+          )}>
+            {formatTime(timeLeft)}
+          </p>
 
-          {/* Right: Controls */}
-          <div className="flex items-center gap-2">
+          {/* Controls */}
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Button
-              variant="outline"
-              size="sm"
+              variant="secondary"
+              size="icon"
               onClick={() => setIsPaused(!isPaused)}
-              className="h-9 w-9 p-0"
+              className="h-9 w-9"
               title={isPaused ? "Resume" : "Pause"}
+              aria-label={isPaused ? "Resume" : "Pause"}
             >
               {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </Button>
 
             {isBreak && (
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
+                size="icon"
                 onClick={skipBreak}
-                className="h-9 w-9 p-0"
+                className="h-9 w-9"
                 title="Skip break"
+                aria-label="Skip break"
               >
                 <SkipForward className="h-4 w-4" />
               </Button>
@@ -227,52 +219,61 @@ export const FocusMode = ({ task, onStop, onComplete, onClose }: FocusModeProps)
             <Button
               size="sm"
               onClick={handleComplete}
-              className="bg-green-600 hover:bg-green-700 text-white gap-1"
+              className="gap-1.5"
             >
-              <CheckCircle className="h-4 w-4" />
+              <CheckCircle2 className="h-4 w-4" />
               Complete
             </Button>
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleStop}
-              className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               title="Stop & save time"
+              aria-label="Stop and save time"
             >
               <Square className="h-4 w-4" />
             </Button>
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={onClose}
-              className="h-9 w-9 p-0 text-muted-foreground"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
               title="Close without saving"
+              aria-label="Close without saving"
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* Session dots */}
-        <div className="flex items-center gap-1.5 mt-3 justify-center">
-          {Array.from({ length: settings.current.sessionsBeforeLong }, (_, i) => (
-            <div
-              key={i}
-              className={cn(
-                "w-2 h-2 rounded-full transition-colors",
-                i < sessionCount
-                  ? "bg-primary"
-                  : "bg-muted-foreground/20"
-              )}
-            />
-          ))}
-          <Badge variant="outline" className="ml-2 text-xs">
-            {sessionCount}/{settings.current.sessionsBeforeLong} until long break
-          </Badge>
+        {/* Sessions */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            {Array.from({ length: settings.current.sessionsBeforeLong }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full transition-colors",
+                  i < sessionCount
+                    ? "bg-primary"
+                    : "bg-muted-foreground/30"
+                )}
+              />
+            ))}
+          </div>
+          <span>
+            <span className="font-mono tabular-nums text-foreground">{sessionCount}/{settings.current.sessionsBeforeLong}</span> until long break
+          </span>
+          <span className="ml-auto">
+            {elapsedMinutes > 0 ? (
+              <><span className="font-mono tabular-nums text-foreground">{elapsedMinutes}</span> min focused</>
+            ) : "Just started"}
+          </span>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

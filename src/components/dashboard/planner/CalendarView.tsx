@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, CheckCircle, Clock, Play, Edit } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Pencil, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Task {
@@ -32,20 +31,22 @@ interface CalendarViewProps {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const CATEGORY_DOT: Record<string, string> = {
-  study: "bg-blue-500",
-  practice: "bg-green-500",
-  interview: "bg-purple-500",
-  review: "bg-amber-500",
-  other: "bg-gray-500",
+// Priority colours: urgent and high red, medium amber, low grey (done tasks get a green dot)
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: "bg-destructive",
+  high: "bg-destructive",
+  medium: "bg-warning",
+  low: "bg-muted-foreground",
 };
 
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: "ring-2 ring-red-400",
-  high: "ring-2 ring-amber-400",
-  medium: "",
-  low: "",
+const PRIORITY_BADGES: Record<string, string> = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-warning/10 text-warning",
+  high: "bg-destructive/10 text-destructive",
+  urgent: "bg-destructive/15 text-destructive",
 };
+
+const BADGE_CLASS = "inline-flex items-center rounded-md border border-transparent px-1.5 py-0.5 text-xs font-medium capitalize leading-4";
 
 export const CalendarView = ({ tasks, onToggleComplete, onFocus, onEdit }: CalendarViewProps) => {
   const today = new Date();
@@ -129,19 +130,19 @@ export const CalendarView = ({ tasks, onToggleComplete, onFocus, onEdit }: Calen
   return (
     <div className="space-y-4">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={prevMonth} className="h-8 w-8 p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8" title="Previous month" aria-label="Previous month">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="text-lg font-semibold min-w-[180px] text-center">
-            {MONTHS[currentMonth]} {currentYear}
+          <h3 className="min-w-[150px] text-center text-base font-semibold sm:min-w-[180px]">
+            {MONTHS[currentMonth]} <span className="font-mono tabular-nums">{currentYear}</span>
           </h3>
-          <Button variant="outline" size="sm" onClick={nextMonth} className="h-8 w-8 p-0">
+          <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8" title="Next month" aria-label="Next month">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={goToToday}>
+        <Button variant="outline" size="sm" onClick={goToToday} className="h-8">
           Today
         </Button>
       </div>
@@ -149,9 +150,9 @@ export const CalendarView = ({ tasks, onToggleComplete, onFocus, onEdit }: Calen
       {/* Calendar Grid */}
       <Card className="overflow-hidden">
         {/* Day headers */}
-        <div className="grid grid-cols-7 bg-muted/50">
+        <div className="grid grid-cols-7 border-b bg-muted/40">
           {DAYS.map(day => (
-            <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2 border-b">
+            <div key={day} className="eyebrow py-2 text-center">
               {day}
             </div>
           ))}
@@ -171,55 +172,68 @@ export const CalendarView = ({ tasks, onToggleComplete, onFocus, onEdit }: Calen
               <div
                 key={idx}
                 onClick={() => cell.isCurrentMonth && setSelectedDate(isSelected ? null : cell.dateKey)}
+                aria-current={isTodayCell ? "date" : undefined}
                 className={cn(
-                  "min-h-[80px] p-1.5 border-b border-r cursor-pointer transition-colors relative",
-                  !cell.isCurrentMonth && "bg-muted/30 text-muted-foreground/50",
-                  cell.isCurrentMonth && "hover:bg-accent/50",
-                  isSelected && "bg-primary/10 ring-1 ring-primary",
-                  isTodayCell && "bg-primary/5"
+                  "min-h-[64px] min-w-0 border-b border-r p-1 transition-colors sm:min-h-[96px] sm:p-1.5",
+                  "[&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0",
+                  cell.isCurrentMonth ? "cursor-pointer hover:bg-accent/50" : "bg-muted/30 text-muted-foreground/50",
+                  isSelected && "bg-accent hover:bg-accent"
                 )}
               >
-                {/* Date number */}
-                <div className={cn(
-                  "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
-                  isTodayCell && "bg-primary text-primary-foreground font-bold"
-                )}>
-                  {cell.day}
+                {/* Date number, and how many tasks are due (phones) */}
+                <div className="flex items-start justify-between gap-1">
+                  <span className={cn(
+                    "flex h-6 min-w-6 items-center justify-center rounded-md px-1 font-mono text-xs tabular-nums",
+                    isTodayCell && "font-semibold text-primary ring-1 ring-primary"
+                  )}>
+                    {cell.day}
+                  </span>
+                  {dateTasks.length > 0 && (
+                    <span className={cn(
+                      "pr-0.5 pt-1 font-mono text-[10px] leading-none tabular-nums sm:hidden",
+                      hasOverdue ? "text-destructive" : hasCompleted && !hasPending ? "text-success" : "text-muted-foreground"
+                    )}>
+                      {dateTasks.length}
+                    </span>
+                  )}
                 </div>
 
-                {/* Task dots */}
+                {/* Task pills (wider screens) */}
                 {dateTasks.length > 0 && (
-                  <div className="flex flex-wrap gap-1 px-0.5">
-                    {dateTasks.slice(0, 3).map(task => (
-                      <div
-                        key={task._id}
-                        className={cn(
-                          "w-2 h-2 rounded-full",
-                          task.completed
-                            ? "bg-green-500"
-                            : hasOverdue && !task.completed && new Date(task.deadline) < today
-                            ? "bg-red-500"
-                            : CATEGORY_DOT[task.category],
-                          PRIORITY_DOT[task.priority]
-                        )}
-                        title={task.title}
-                      />
-                    ))}
+                  <div className="mt-1 hidden space-y-0.5 sm:block">
+                    {dateTasks.slice(0, 3).map(task => {
+                      const isOverdueTask = !task.completed && new Date(task.deadline) < today;
+                      return (
+                        <div
+                          key={task._id}
+                          title={task.title}
+                          className={cn(
+                            "flex items-center gap-1 rounded-sm border px-1 py-px text-[11px] leading-4",
+                            isOverdueTask ? "border-destructive/30 bg-destructive/10 text-destructive" : "bg-muted text-foreground",
+                            task.completed && "text-muted-foreground line-through"
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", task.completed ? "bg-success" : PRIORITY_DOT[task.priority])} />
+                          <span className="truncate">{task.title}</span>
+                        </div>
+                      );
+                    })}
                     {dateTasks.length > 3 && (
-                      <span className="text-[10px] text-muted-foreground">+{dateTasks.length - 3}</span>
+                      <p className="px-1 font-mono text-[10px] text-muted-foreground">+{dateTasks.length - 3} more</p>
                     )}
                   </div>
                 )}
 
-                {/* Task count badge */}
+                {/* Task dots (phones) */}
                 {dateTasks.length > 0 && (
-                  <div className="absolute bottom-1 right-1">
-                    <span className={cn(
-                      "text-[10px] font-medium px-1 rounded",
-                      hasOverdue ? "text-red-600" : hasCompleted && !hasPending ? "text-green-600" : "text-muted-foreground"
-                    )}>
-                      {dateTasks.length}
-                    </span>
+                  <div className="mt-1 flex flex-wrap gap-1 px-0.5 sm:hidden">
+                    {dateTasks.slice(0, 3).map(task => (
+                      <span
+                        key={task._id}
+                        className={cn("h-1.5 w-1.5 rounded-full", task.completed ? "bg-success" : PRIORITY_DOT[task.priority])}
+                        title={task.title}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -229,97 +243,91 @@ export const CalendarView = ({ tasks, onToggleComplete, onFocus, onEdit }: Calen
       </Card>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground px-1">
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Completed</div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> Overdue</div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> Study</div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-300" /> Practice</div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> Interview</div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500" /> Review</div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-destructive" /> Urgent / high</span>
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-warning" /> Medium</span>
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" /> Low</span>
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Completed</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-destructive/30 bg-destructive/10" /> Overdue</span>
       </div>
 
       {/* Selected Date Panel */}
       {selectedDate && (
-        <Card className="border-primary/30">
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold">
-                Tasks for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </h4>
-              <Badge variant="outline">{selectedTasks.length} task{selectedTasks.length !== 1 ? 's' : ''}</Badge>
-            </div>
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+            <h4 className="text-sm font-semibold">
+              Tasks for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </h4>
+            <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+              {selectedTasks.length} task{selectedTasks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
-            {selectedTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">No tasks for this date.</p>
-            ) : (
-              <div className="space-y-2">
-                {selectedTasks.map(task => (
-                  <div
+          {selectedTasks.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">No tasks for this date.</p>
+          ) : (
+            <ul className="divide-y">
+              {selectedTasks.map(task => {
+                const completeLabel = task.completed ? "Mark as incomplete" : "Mark as completed";
+                return (
+                  <li
                     key={task._id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors",
-                      task.completed ? "bg-green-50/50 border-green-200" : "hover:bg-accent/50"
-                    )}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => onToggleComplete(task._id)}
-                      >
-                        <CheckCircle className={cn(
-                          "h-5 w-5",
-                          task.completed ? "text-green-600" : "text-gray-400"
-                        )} />
-                      </Button>
-                      <div className="min-w-0">
-                        <p className={cn(
-                          "text-sm font-medium truncate",
-                          task.completed && "line-through text-muted-foreground"
-                        )}>
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge className={cn("text-[10px] px-1.5 py-0", {
-                            'bg-gray-100 text-gray-700': task.priority === 'low',
-                            'bg-yellow-100 text-yellow-800': task.priority === 'medium',
-                            'bg-amber-100 text-amber-800': task.priority === 'high',
-                            'bg-red-100 text-red-800': task.priority === 'urgent',
-                          })}>
-                            {task.priority}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground capitalize">{task.category}</span>
-                        </div>
+                    <button
+                      type="button"
+                      onClick={() => onToggleComplete(task._id)}
+                      title={completeLabel}
+                      aria-label={completeLabel}
+                      className={cn(
+                        "-m-1 shrink-0 rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        task.completed ? "text-success" : "text-muted-foreground hover:text-success"
+                      )}
+                    >
+                      {task.completed ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn(
+                        "truncate text-sm font-medium",
+                        task.completed && "line-through text-muted-foreground"
+                      )}>
+                        {task.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={cn(BADGE_CLASS, task.completed ? "bg-muted text-muted-foreground" : PRIORITY_BADGES[task.priority])}>
+                          {task.priority}
+                        </span>
+                        <span className="chip capitalize">{task.category}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       {!task.completed && (
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
-                          className="h-7 gap-1 text-xs"
+                          className="h-8 gap-1.5 px-2.5 text-xs"
                           onClick={() => onFocus(task)}
                         >
-                          <Play className="h-3 w-3" />
+                          <Play className="h-4 w-4" />
                           Focus
                         </Button>
                       )}
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() => onEdit(task)}
                         title="Edit task"
+                        aria-label="Edit task"
                       >
-                        <Edit className="h-3 w-3" />
+                        <Pencil className="h-4 w-4" />
                       </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
       )}
     </div>

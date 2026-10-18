@@ -67,6 +67,11 @@ const problemSchema = new mongoose.Schema({
     enum: ['solved', 'attempted', 'bookmarked'],
     default: 'solved'
   },
+  // Solved as that day's "today's problem" (counts towards the daily streak)
+  isDailyProblem: {
+    type: Boolean,
+    default: false
+  },
   
   // User notes
   notes: String,

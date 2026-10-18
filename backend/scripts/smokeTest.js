@@ -42,7 +42,12 @@ const warn = (name, detail) => {
 const call = async (method, url, { token, body } = {}) => {
   const res = await fetch(BASE + url, {
     method,
-    headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+    headers: {
+      'Content-Type': 'application/json',
+      // Like the browser does, so "today" and streaks use the user's own calendar day
+      'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
     body: body && JSON.stringify(body),
   });
   return { status: res.status, data: await res.json().catch(() => null) };
@@ -130,10 +135,24 @@ async function run(email) {
 
   const progress = await call('GET', '/progress', { token });
   pass('dashboard progress loads', progress.status === 200 && progress.data?.progress?.totalProblemsSolved >= (problemId ? 1 : 0));
+  if (problemId) {
+    const { currentStreak, todaysProblemStreak } = progress.data?.progress || {};
+    pass("solving today's problem starts both streaks at 1", currentStreak === 1 && todaysProblemStreak === 1,
+      `currentStreak ${currentStreak}, todaysProblemStreak ${todaysProblemStreak}`);
+    const todayAgain = await call('GET', '/progress/todays-problem', { token });
+    pass("today's problem now shows as solved", todayAgain.data?.todaysProblem?.isSolved === true);
+    const solvesInCalendar = Object.values(progress.data?.activity || {}).reduce((sum, n) => sum + n, 0);
+    pass('the activity calendar counts the solves', solvesInCalendar >= 1, JSON.stringify(progress.data?.activity));
+    const recs = await call('GET', '/progress/recommendations', { token });
+    const recTitles = (recs.data?.recommendations || []).map((r) => r.title);
+    pass('tips use the fresh streak (no "Start a Streak" after solving)', recs.status === 200 && !recTitles.includes('Start a Streak'), recTitles.join(', '));
+  }
 
   if (topicList[0]) {
     const quiz = await call('POST', '/progress/quiz-score', { token, body: { topicSlug: topicList[0].slug, score: 1, totalQuestions: 2 } });
     pass('quiz score can be saved', quiz.status === 200, quiz.data?.error);
+    const withQuiz = await call('GET', '/progress', { token });
+    pass('saved quiz score comes back with progress', withQuiz.data?.progress?.quizScores?.[topicList[0].slug]?.bestScore === 1);
     const subtopicId = topicList[0].subtopics?.[0]?._id;
     if (subtopicId) {
       const read = await call('PATCH', '/progress/article-read', { token, body: { topicSlug: topicList[0].slug, subtopicId } });
@@ -163,6 +182,14 @@ async function run(email) {
   } catch (error) {
     warn('code runner could not be reached', error.message);
   }
+
+  // ---- Sign out everywhere ----
+  const signedOut = await call('POST', '/auth/logout-all', { token });
+  const oldToken = await call('GET', '/auth/me', { token });
+  pass('"sign out of all devices" invalidates old logins', signedOut.status === 200 && oldToken.status === 401);
+  const relogin = await call('POST', '/auth/signin', { body: { email, password } });
+  token = relogin.data?.token;
+  pass('logging in again afterwards works', relogin.status === 200 && Boolean(token));
 
   // ---- Clean up through the app itself ----
   const deleted = await call('DELETE', '/auth/account', { token });

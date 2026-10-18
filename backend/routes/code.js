@@ -10,8 +10,8 @@ const router = express.Router();
 const JUDGE0_API_KEY = config.judge0ApiKey;
 
 // Give up on a stuck compiler service instead of holding the request open
-// (Java and Rust compiles alone can take 10+ seconds)
-const UPSTREAM_TIMEOUT_MS = 30000;
+// (on Wandbox a Rust compile alone can take ~30 seconds)
+const UPSTREAM_TIMEOUT_MS = 60000;
 
 // Judge0 language IDs
 const JUDGE0_LANG_IDS = {
